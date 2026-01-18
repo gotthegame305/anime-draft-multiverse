@@ -75,6 +75,14 @@ export default function DraftGrid() {
         return () => { mounted = false; };
     }, []);
 
+    const drawCardFromPool = () => {
+        const pool = [...characterPool];
+        if (pool.length === 0) return null;
+        const pick = pool.shift();
+        setCharacterPool(pool);
+        return pick;
+    };
+
     // CPU Turn Logic
     useEffect(() => {
         if (!isUserTurn && gameStatus === 'DRAFTING') {
@@ -99,18 +107,11 @@ export default function DraftGrid() {
                 return () => clearTimeout(timer);
             }
         }
-    }, [isUserTurn, gameStatus, cpuTeam, characterPool]); // Added characterPool to dep
+    }, [isUserTurn, gameStatus, cpuTeam, characterPool, drawCardFromPool]);
 
     // Check for Game End
     const isGameFull = userTeam.every(Boolean) && cpuTeam.every(Boolean);
 
-    const drawCardFromPool = () => {
-        const pool = [...characterPool];
-        if (pool.length === 0) return null;
-        const pick = pool.shift();
-        setCharacterPool(pool);
-        return pick;
-    };
 
     const handleUserSummon = () => {
         if (!isUserTurn || gameStatus !== 'DRAFTING' || currentDraw) return;

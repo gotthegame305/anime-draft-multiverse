@@ -14,11 +14,12 @@ export async function GET() {
             roomCount,
             dbUrlType: process.env.DATABASE_URL?.startsWith('prisma') ? 'Accelerate' : 'Standard'
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const err = error as Error;
         return NextResponse.json({
             success: false,
-            error: error.message,
-            stack: error.stack,
+            error: err.message,
+            stack: err.stack,
             envSet: !!process.env.DATABASE_URL
         }, { status: 500 });
     }
