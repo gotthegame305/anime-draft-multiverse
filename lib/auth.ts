@@ -9,23 +9,22 @@ export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(prisma as any),
     providers: [
         GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID ?? "placeholder_id",
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "placeholder_secret",
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
         }),
         DiscordProvider({
-            clientId: process.env.DISCORD_CLIENT_ID ?? "placeholder_id",
-            clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "placeholder_secret",
+            clientId: process.env.DISCORD_CLIENT_ID!,
+            clientSecret: process.env.DISCORD_CLIENT_SECRET!,
         }),
     ],
     callbacks: {
         async session({ session, user }) {
             if (session.user) {
+                // @ts-ignore - id exists but might not be in the default type
                 session.user.id = user.id;
-                // Map database fields to session user if needed
-                // session.user.username = user.username; // If we extended the type
             }
             return session;
         },
     },
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.NEXTAUTH_SECRET || "fallback_secret_for_dev_only",
 }
