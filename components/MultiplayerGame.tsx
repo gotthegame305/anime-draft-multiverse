@@ -86,8 +86,17 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         fetchInitialState();
 
         const channel = subscribeToRoom(roomId);
-        channel?.bind('state-updated', (data: GameState) => {
-            setGameState(data);
+        channel?.bind('state-updated', (data: Partial<GameState>) => {
+            console.log("[LOBBY DEBUG] Pusher: state-updated", data);
+            setGameState(prev => {
+                if (!prev) return data as GameState;
+                // Merge incoming state but keep local pool if incoming is missing it
+                return {
+                    ...prev,
+                    ...data,
+                    characterPool: data.characterPool || prev.characterPool
+                } as GameState;
+            });
             setLoading(false);
         });
 

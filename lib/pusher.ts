@@ -25,5 +25,18 @@ export async function triggerRoomEvent(roomId: string, event: string, data: any)
         console.warn(`[PUSHER] Skipping event '${event}' for room '${roomId}': Server not initialized.`);
         return;
     }
-    await pusherServer.trigger(`room-${roomId}`, event, data);
+
+    try {
+        // Strip large data for Pusher broadcasts to stay under 10KB limit
+        const broadcastData = { ...data };
+        if (broadcastData.characterPool) {
+            delete broadcastData.characterPool;
+        }
+
+        await pusherServer.trigger(`room-${roomId}`, event, broadcastData);
+    } catch (error) {
+        console.error(`[PUSHER] Error triggering event '${event}':`, error);
+        // We log the error but don't rethrow, to prevent 500ing the API route
+        // if just the broadcast fails. Identity sync (DB) remains the source of truth.
+    }
 }
