@@ -15,7 +15,7 @@ if (!pusherClient) {
     pusherClient.connection.bind('connected', () => {
         console.log('[PUSHER] Connected to real-time service');
     });
-    pusherClient.connection.bind('error', (err: any) => {
+    pusherClient.connection.bind('error', (err: unknown) => {
         console.error('[PUSHER] Connection error:', err);
     });
     pusherClient.connection.bind('disconnected', () => {
