@@ -23,7 +23,6 @@ export const authOptions: NextAuthOptions = {
     callbacks: {
         async session({ session, user }) {
             if (session?.user && user) {
-                // @ts-ignore - session.user type issue
                 session.user.id = user.id;
             }
             return session;

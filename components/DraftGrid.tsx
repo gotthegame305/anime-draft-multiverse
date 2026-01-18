@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import CharacterCard from './CharacterCard';
 import { getCharacters, submitMatch, CharacterItem, RoleStats } from '@/app/actions';
 
@@ -279,7 +280,7 @@ export default function DraftGrid() {
 
                             {char ? (
                                 <div className="w-full h-full relative group">
-                                    <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover" />
+                                    <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
                                     <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center pointer-events-none p-1">
                                         <span className="text-white font-bold text-lg text-center drop-shadow-md leading-tight">{char.name}</span>
                                         {/* Show AI Reason if available */}
@@ -385,7 +386,7 @@ export default function DraftGrid() {
                             </div>
                             {char ? (
                                 <div className="w-full h-full relative">
-                                    <img src={char.imageUrl} alt="Enemy" className="w-full h-full object-cover grayscale opacity-50" />
+                                    <Image src={char.imageUrl} alt="Enemy" fill className="object-cover grayscale opacity-50" />
                                     <div className="absolute inset-0 bg-red-900/30" />
                                 </div>
                             ) : (

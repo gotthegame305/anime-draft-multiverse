@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 
 type Message = {
@@ -102,10 +103,12 @@ export default function GlobalChat() {
                     return (
                         <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
                             <div className="flex-shrink-0">
-                                <img
+                                <Image
                                     src={msg.sender.avatarUrl || msg.sender.image || "/default-avatar.png"}
                                     alt={msg.sender.name || "User"}
-                                    className="w-8 h-8 rounded-full border border-purple-500/50"
+                                    width={32}
+                                    height={32}
+                                    className="rounded-full border border-purple-500/50"
                                 />
                             </div>
                             <div className={`flex flex-col max-w-[80%] ${isMe ? "items-end" : "items-start"}`}>
@@ -113,8 +116,8 @@ export default function GlobalChat() {
                                     {msg.sender.name || "Unknown"}
                                 </span>
                                 <div className={`px-3 py-2 rounded-lg text-sm ${isMe
-                                        ? "bg-purple-600 text-white rounded-tr-none"
-                                        : "bg-slate-800 text-gray-200 border border-slate-700 rounded-tl-none"
+                                    ? "bg-purple-600 text-white rounded-tr-none"
+                                    : "bg-slate-800 text-gray-200 border border-slate-700 rounded-tl-none"
                                     }`}>
                                     {msg.content}
                                 </div>

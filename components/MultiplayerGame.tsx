@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters } from '@/app/actions';
@@ -284,7 +285,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                                 }`}
                                         >
                                             {char ? (
-                                                <img src={char.imageUrl} alt={char.name} className="w-full h-full object-cover" />
+                                                <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
                                             ) : (
                                                 <div className="flex items-center justify-center h-full">
                                                     <p className="text-gray-500 text-xs text-center">{role}</p>
@@ -303,11 +304,14 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             {gameState.currentDraw && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-slate-800 border-4 border-yellow-400 rounded-2xl p-6 max-w-md w-full mx-4">
-                        <img
-                            src={gameState.currentDraw.imageUrl}
-                            alt={gameState.currentDraw.name}
-                            className="w-full h-64 object-cover rounded-xl mb-4"
-                        />
+                        <div className="relative w-full h-64 mb-4">
+                            <Image
+                                src={gameState.currentDraw.imageUrl}
+                                alt={gameState.currentDraw.name}
+                                fill
+                                className="object-cover rounded-xl"
+                            />
+                        </div>
                         <h3 className="text-white text-2xl font-bold mb-2">{gameState.currentDraw.name}</h3>
                         <p className="text-gray-400 mb-4">{gameState.currentDraw.animeUniverse}</p>
                         {isMyTurn && (

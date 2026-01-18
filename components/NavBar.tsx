@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 
@@ -35,10 +36,12 @@ export default function NavBar() {
                         {session ? (
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2">
-                                    <img
+                                    <Image
                                         src={session.user?.image || "/default-avatar.png"}
                                         alt="User"
-                                        className="w-8 h-8 rounded-full border border-purple-500/50"
+                                        width={32}
+                                        height={32}
+                                        className="rounded-full border border-purple-500/50"
                                     />
                                     <span className="text-sm font-medium text-gray-300 hidden sm:block">
                                         {session.user?.name}

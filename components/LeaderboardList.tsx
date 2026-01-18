@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 type LeaderboardUser = {
     username: string;
@@ -50,10 +51,12 @@ export default function LeaderboardList({ users }: { users: LeaderboardUser[] })
                             <div className="absolute -top-4 bg-slate-900 border border-slate-700 rounded-full px-3 py-1 text-xl font-bold">
                                 {getRankIcon(rankIndex)}
                             </div>
-                            <img
+                            <Image
                                 src={user.avatarUrl}
                                 alt={user.username}
-                                className={`rounded-full object-cover mb-3 border-2 ${rankIndex === 0 ? "w-24 h-24 border-yellow-400" : "w-16 h-16 border-slate-500"}`}
+                                width={rankIndex === 0 ? 96 : 64}
+                                height={rankIndex === 0 ? 96 : 64}
+                                className={`rounded-full object-cover mb-3 border-2 ${rankIndex === 0 ? "border-yellow-400" : "border-slate-500"}`}
                             />
                             <h3 className="text-xl font-bold text-white truncate max-w-full">{user.username}</h3>
                             <div className="mt-2 text-center text-sm">
@@ -71,7 +74,7 @@ export default function LeaderboardList({ users }: { users: LeaderboardUser[] })
                     <div key={user.username} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700 hover:bg-slate-700 transition-colors">
                         <div className="flex items-center gap-4">
                             <span className="text-gray-500 font-mono w-8 text-center">{index + 4}</span>
-                            <img src={user.avatarUrl} alt={user.username} className="w-10 h-10 rounded-full border border-slate-600" />
+                            <Image src={user.avatarUrl} alt={user.username} width={40} height={40} className="rounded-full border border-slate-600" />
                             <span className="font-semibold text-white">{user.username}</span>
                         </div>
                         <div className="flex gap-6 text-right">
