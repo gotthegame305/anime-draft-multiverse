@@ -137,7 +137,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         newTeams[userId][slotIndex] = gameState.currentDraw;
 
         // Move to next turn
-        let nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
+        const nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
         let nextRound = gameState.round;
 
         // Check if round is complete

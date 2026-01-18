@@ -8,6 +8,7 @@ export const pusherServer = new Pusher({
     useTLS: true,
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function triggerRoomEvent(roomId: string, event: string, data: any) {
     await pusherServer.trigger(`room-${roomId}`, event, data);
 }
