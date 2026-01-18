@@ -45,7 +45,11 @@ export async function GET(
         }
 
         console.log(`[DEBUG] Room found: ${room.code}, Status: ${room.status}, Players: ${room.players.length}`);
-        return NextResponse.json(room);
+        // Return the room with the players
+        return NextResponse.json({
+            ...room,
+            gameState: room.gameState && Object.keys(room.gameState as object).length > 0 ? room.gameState : null
+        });
     } catch (error: unknown) {
         console.error('[DEBUG] FATAL ERROR fetching room state:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -93,7 +97,7 @@ export async function POST(
                 data: {
                     status: 'DRAFTING',
                     startedAt: new Date(),
-                    gameState: null // Important: Wipe old bloated state
+                    gameState: {} // Set to empty object for Prisma type safety
                 }
             });
 
