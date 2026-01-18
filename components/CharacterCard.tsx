@@ -7,7 +7,9 @@ interface Character {
     animeUniverse: string;
     stats: {
         favorites?: number;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         roleStats?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         [key: string]: any;
     };
 }
