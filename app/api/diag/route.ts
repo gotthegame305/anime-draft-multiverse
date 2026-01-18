@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
     let dbStatus = "CHECKING...";
     try {
-        // @ts-ignore
         await prisma.$queryRaw`SELECT 1`;
         dbStatus = "CONNECTED";
-    } catch (e: any) {
-        dbStatus = "FAILED: " + e.message;
+    } catch (e: unknown) {
+        dbStatus = "FAILED: " + (e instanceof Error ? e.message : String(e));
     }
 
     const diag = {
@@ -20,7 +22,7 @@ export async function GET() {
         DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
         NEXTAUTH_SECRET_EXISTS: !!(process.env.NEXTAUTH_SECRET || process.env.NEXT_PUBLIC_NEXTAUTH_SECRET),
         PUSHER_KEYS_EXISTS: !!(process.env.PUSHER_KEY && process.env.PUSHER_CLUSTER && process.env.PUSHER_APP_ID),
-        VERSION_ID: "9.0-DB-CHECK",
+        VERSION_ID: "9.1-FIXED",
         timestamp: new Date().toISOString()
     };
 
