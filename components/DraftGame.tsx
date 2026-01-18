@@ -9,7 +9,7 @@ interface Character {
     name: string
     imageUrl: string
     animeUniverse: string
-    stats: any // using any for Json type, or could be more specific if known
+    stats: Record<string, unknown>
 }
 
 interface DraftGameProps {

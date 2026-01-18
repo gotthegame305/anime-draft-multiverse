@@ -34,7 +34,8 @@ export async function getCharacters(limit = 500) {
         })
 
         // Just map them, don't slice yet. Client will filter and shuffle.
-        return characters.map(char => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return characters.map((char: any) => {
             const stats = char.stats as { favorites: number };
 
             // Use stored AI ratings if available, otherwise random seed
@@ -133,6 +134,7 @@ export async function submitMatch(userId: string, userTeam: (CharacterItem | nul
         await prisma.match.create({
             data: {
                 winnerId: isWin ? (userId !== 'user-123' ? userId : "Anonymous") : 'CPU',
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 teamDrafted: { user: userTeam, cpu: cpuTeam } as any,
             }
         });

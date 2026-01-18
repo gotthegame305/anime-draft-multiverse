@@ -5,7 +5,11 @@ interface Character {
     name: string;
     imageUrl: string;
     animeUniverse: string;
-    stats: any; // using any for flexibility with JSON
+    stats: {
+        favorites?: number;
+        roleStats?: any;
+        [key: string]: any;
+    };
 }
 
 interface CharacterCardProps {

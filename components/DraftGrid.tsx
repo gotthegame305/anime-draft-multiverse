@@ -24,7 +24,7 @@ export default function DraftGrid() {
     const [isUserTurn, setIsUserTurn] = useState(true);
     const [currentDraw, setCurrentDraw] = useState<CharacterItem | null>(null);
     const [skipsRemaining, setSkipsRemaining] = useState(MAX_SKIPS);
-    const [matchesSubmitted, setMatchesSubmitted] = useState(false);
+
 
     const [gameStatus, setGameStatus] = useState<'LOADING' | 'FILTERING' | 'READY' | 'DRAFTING' | 'GRADING' | 'FINISHED' | 'ERROR'>('LOADING');
     const [result, setResult] = useState<any>(null);
@@ -62,10 +62,10 @@ export default function DraftGrid() {
                         throw new Error("No characters found in database.");
                     }
                 }
-            } catch (error: any) {
+            } catch (error) {
                 console.error("Error initializing draft:", error);
                 if (mounted) {
-                    setErrorMsg(error.message || "Failed to load");
+                    setErrorMsg(error instanceof Error ? error.message : "Failed to load");
                     setGameStatus('ERROR');
                 }
             }
@@ -171,7 +171,6 @@ export default function DraftGrid() {
 
 
     const handleGameEnd = async () => {
-        setMatchesSubmitted(true);
         setGameStatus('GRADING');
         try {
             const res = await submitMatch('user-123', userTeam, cpuTeam);
@@ -270,7 +269,7 @@ export default function DraftGrid() {
                                 {/* SHOW STARS only AFTER placement */}
                                 {char && (
                                     <div className="text-yellow-400 text-xs font-mono">
-                                        {'⭐'.repeat(char.stats.roleStats[ROLES_KEY[i]])}
+                                        {'⭐'.repeat((char.stats.roleStats[ROLES_KEY[i]] as number) || 1)}
                                     </div>
                                 )}
                             </div>
@@ -283,7 +282,7 @@ export default function DraftGrid() {
                                         {/* Show AI Reason if available */}
                                         {char.stats.roleStats.reason && (
                                             <span className="text-[8px] text-yellow-200/80 text-center leading-none mt-1 max-w-full px-1">
-                                                "{char.stats.roleStats.reason}"
+                                                &quot;{char.stats.roleStats.reason}&quot;
                                             </span>
                                         )}
                                     </div>
@@ -377,7 +376,7 @@ export default function DraftGrid() {
                                 <span className="text-[10px] font-bold text-red-500 tracking-widest">{ROLES[i]}</span>
                                 {char && (
                                     <div className="text-red-400 text-xs font-mono">
-                                        {'⭐'.repeat(char.stats?.roleStats?.[ROLES_KEY[i]] || 1)}
+                                        {'⭐'.repeat((char.stats?.roleStats?.[ROLES_KEY[i]] as number) || 1)}
                                     </div>
                                 )}
                             </div>

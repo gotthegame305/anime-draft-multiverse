@@ -28,6 +28,7 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     })
 
     // Normalize data for the frontend
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return users.map((user: any) => ({
         username: user.username || user.name || "Anonymous",
         avatarUrl: user.avatarUrl || user.image || "/placeholder-avatar.png",
