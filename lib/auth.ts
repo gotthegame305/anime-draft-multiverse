@@ -20,8 +20,7 @@ export const authOptions: NextAuthOptions = {
     callbacks: {
         async session({ session, user }) {
             if (session.user) {
-                // @ts-ignore - id exists but might not be in the default type
-                session.user.id = user.id;
+                (session.user as any).id = user.id;
             }
             return session;
         },
