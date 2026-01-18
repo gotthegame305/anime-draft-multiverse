@@ -27,6 +27,7 @@ export default function DraftGrid() {
 
 
     const [gameStatus, setGameStatus] = useState<'LOADING' | 'FILTERING' | 'READY' | 'DRAFTING' | 'GRADING' | 'FINISHED' | 'ERROR'>('LOADING');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [result, setResult] = useState<any>(null);
     const [errorMsg, setErrorMsg] = useState('');
 
