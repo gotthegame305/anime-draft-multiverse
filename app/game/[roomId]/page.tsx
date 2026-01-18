@@ -8,6 +8,7 @@ import MultiplayerGame from '@/components/MultiplayerGame';
 interface Player {
     userId: string;
     isSpectator: boolean;
+    joinedAt: string;
 }
 
 export default function GamePage({ params }: { params: { roomId: string } }) {
