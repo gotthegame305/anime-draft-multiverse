@@ -107,7 +107,8 @@ export default function DraftGrid() {
                 return () => clearTimeout(timer);
             }
         }
-    }, [isUserTurn, gameStatus, cpuTeam, characterPool, drawCardFromPool]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isUserTurn, gameStatus, cpuTeam, characterPool]);
 
     // Check for Game End
     const isGameFull = userTeam.every(Boolean) && cpuTeam.every(Boolean);
