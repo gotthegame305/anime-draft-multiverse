@@ -279,7 +279,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             {/* 4-Player Grid (2x2) */}
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {activePlayers.map((player, playerIdx) => {
-                    const team = gameState.playerTeams[player.userId] || [];
+                    // Normalize key lookup to match placeCharacter logic
+                    const myKey = Object.keys(gameState.playerTeams).find(k => k.toLowerCase().trim() === player.userId.toLowerCase().trim()) || player.userId;
+                    const team = gameState.playerTeams[myKey] || [];
                     const isActive = gameState.currentTurn === playerIdx;
 
                     return (
@@ -320,10 +322,10 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 })}
             </div>
 
-            {/* Current Draw (Center) */}
+            {/* Current Draw (Center) - pointer-events-none to allow clicking slots behind it */}
             {gameState.currentDraw && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-slate-800 border-4 border-yellow-400 rounded-2xl p-6 max-w-md w-full mx-4">
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 pointer-events-none">
+                    <div className="bg-slate-800 border-4 border-yellow-400 rounded-2xl p-6 max-w-sm w-full mx-4 pointer-events-auto transform scale-90 sm:scale-100 shadow-2xl">
                         <div className="relative w-full h-64 mb-4">
                             <Image
                                 src={gameState.currentDraw.imageUrl}
