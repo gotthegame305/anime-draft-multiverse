@@ -28,6 +28,7 @@ model User {
   // Relations
   matchesWon    Match[]   @relation("UserMatchesWon")
   messages      ChatMessage[]
+  roomPlayers   RoomPlayer[]
 }
 
 model Account {
@@ -114,6 +115,7 @@ model RoomPlayer {
   roomId      String
   room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   isSpectator Boolean  @default(false)
   team        Json?    // Their drafted team
   joinedAt    DateTime @default(now())

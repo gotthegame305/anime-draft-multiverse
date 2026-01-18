@@ -9,6 +9,13 @@ interface Player {
     userId: string;
     isSpectator: boolean;
     joinedAt: string;
+    user: {
+        id: string;
+        name: string | null;
+        image: string | null;
+        username: string | null;
+        avatarUrl: string | null;
+    };
 }
 
 interface Room {
@@ -143,22 +150,39 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                         Players ({activePlayers.length}/{room.maxPlayers || 4})
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {activePlayers.map((player, idx) => (
-                            <div
-                                key={player.id}
-                                className="bg-slate-900/50 border border-slate-600 rounded-xl p-4 flex items-center gap-3"
-                            >
-                                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                                    {idx + 1}
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-white font-semibold">Player {idx + 1}</p>
-                                    {player.userId === room.hostId && (
-                                        <p className="text-yellow-400 text-sm">👑 Host</p>
+                        {activePlayers.map((player, idx) => {
+                            const displayName = player.user.username || player.user.name || `Player ${idx + 1}`;
+                            const avatar = player.user.avatarUrl || player.user.image;
+
+                            return (
+                                <div
+                                    key={player.id}
+                                    className="bg-slate-900/50 border border-slate-600 rounded-xl p-4 flex items-center gap-3"
+                                >
+                                    {avatar ? (
+                                        <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-blue-500">
+                                            <img
+                                                src={avatar}
+                                                alt={displayName}
+                                                className="object-cover w-full h-full"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-xl border-2 border-slate-700">
+                                            {displayName.charAt(0).toUpperCase()}
+                                        </div>
                                     )}
+                                    <div className="flex-1">
+                                        <p className="text-white font-semibold truncate max-w-[150px]">{displayName}</p>
+                                        {player.userId === room.hostId && (
+                                            <p className="text-yellow-400 text-sm flex items-center gap-1">
+                                                <span>👑</span> Host
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 

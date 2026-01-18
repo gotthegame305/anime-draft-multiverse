@@ -42,7 +42,19 @@ export async function POST() {
                 }
             },
             include: {
-                players: true,
+                players: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                image: true,
+                                username: true,
+                                avatarUrl: true
+                            }
+                        }
+                    }
+                }
             }
         });
 

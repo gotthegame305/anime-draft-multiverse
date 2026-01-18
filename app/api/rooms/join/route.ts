@@ -33,13 +33,13 @@ export async function POST(req: Request) {
         }
 
         // Check if already in room
-        const existing = room.players.find(p => p.userId === session.user.id);
+        const existing = room.players.find((p: any) => p.userId === session.user.id);
         if (existing) {
             return NextResponse.json(room);
         }
 
         // Check player limit
-        const activePlayers = room.players.filter(p => !p.isSpectator);
+        const activePlayers = room.players.filter((p: any) => !p.isSpectator);
         if (!isSpectator && activePlayers.length >= room.maxPlayers) {
             return NextResponse.json({ error: 'Room is full' }, { status: 400 });
         }
@@ -56,7 +56,21 @@ export async function POST(req: Request) {
         // Get updated room
         const updatedRoom = await prisma.room.findUnique({
             where: { id: room.id },
-            include: { players: true }
+            include: {
+                players: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                image: true,
+                                username: true,
+                                avatarUrl: true
+                            }
+                        }
+                    }
+                }
+            }
         });
 
         // Trigger real-time event

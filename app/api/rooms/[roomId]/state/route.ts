@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { triggerRoomEvent } from '@/lib/pusher';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
     req: Request,
     { params }: { params: { roomId: string } }
@@ -18,7 +21,21 @@ export async function GET(
 
         const room = await prisma.room.findUnique({
             where: { id: params.roomId },
-            include: { players: true }
+            include: {
+                players: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                image: true,
+                                username: true,
+                                avatarUrl: true
+                            }
+                        }
+                    }
+                }
+            }
         });
 
         if (!room) {
