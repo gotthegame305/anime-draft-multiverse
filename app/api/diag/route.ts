@@ -11,7 +11,9 @@ export async function GET() {
         GOOGLE_CLIENT_ID_EXISTS: !!(process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID),
         DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
         NEXTAUTH_SECRET_EXISTS: !!(process.env.NEXTAUTH_SECRET || process.env.NEXT_PUBLIC_NEXTAUTH_SECRET),
-        VERSION_ID: "6.0-IDENTITY-SCAN",
+        PUSHER_KEYS_EXISTS: !!(process.env.PUSHER_KEY && process.env.PUSHER_CLUSTER && process.env.PUSHER_APP_ID),
+        NEXT_PUBLIC_PUSHER_EXISTS: !!(process.env.NEXT_PUBLIC_PUSHER_KEY && process.env.NEXT_PUBLIC_PUSHER_CLUSTER),
+        VERSION_ID: "7.0-PUSHER-SCAN",
         timestamp: new Date().toISOString()
     };
 
