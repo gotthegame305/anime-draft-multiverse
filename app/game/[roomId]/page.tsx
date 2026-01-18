@@ -22,9 +22,10 @@ export default function GamePage({ params }: { params: { roomId: string } }) {
                 const room = await res.json();
 
                 if (res.ok) {
-                    setPlayers(room.players.map((p: { userId: string; isSpectator: boolean }) => ({
+                    setPlayers(room.players.map((p: { userId: string; isSpectator: boolean; joinedAt: string }) => ({
                         userId: p.userId,
-                        isSpectator: p.isSpectator
+                        isSpectator: p.isSpectator,
+                        joinedAt: p.joinedAt
                     })));
                 }
             } catch {

@@ -23,6 +23,7 @@ export async function GET(
             where: { id: params.roomId },
             include: {
                 players: {
+                    orderBy: { joinedAt: 'asc' },
                     include: {
                         user: {
                             select: {

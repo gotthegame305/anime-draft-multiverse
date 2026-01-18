@@ -21,16 +21,26 @@ const ROLE_KEYS = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as co
 export default function MultiplayerGame({ roomId, userId, players }: {
     roomId: string;
     userId: string;
-    players: Array<{ userId: string; isSpectator: boolean }>;
+    players: Array<{ userId: string; isSpectator: boolean; joinedAt: string }>;
 }) {
     const router = useRouter();
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const activePlayers = players.filter(p => !p.isSpectator);
-    const isSpectator = players.find(p => p.userId === userId)?.isSpectator || false;
+    const sortedPlayers = [...players].sort((a, b) => {
+        return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
+    });
+    const activePlayers = sortedPlayers.filter(p => !p.isSpectator);
+    const isSpectator = sortedPlayers.find(p => p.userId === userId)?.isSpectator || false;
     const myPlayerIndex = activePlayers.findIndex(p => p.userId === userId);
     const isMyTurn = !isSpectator && gameState?.currentTurn === myPlayerIndex;
+
+    console.log("[LOBBY DEBUG] Turn Check:", {
+        roomId, userId, myPlayerIndex,
+        currentTurn: gameState?.currentTurn,
+        isMyTurn,
+        activePlayersCount: activePlayers.length
+    });
 
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
 
@@ -121,21 +131,30 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     };
 
     const placeCharacter = (slotIndex: number) => {
-        if (!gameState || !isMyTurn || !gameState.currentDraw) return;
+        if (!gameState || !isMyTurn || !gameState.currentDraw || !activePlayers[myPlayerIndex]) return;
 
+        // Ensure current player has a team array (defensive)
         const newTeams = { ...gameState.playerTeams };
-        newTeams[userId][slotIndex] = gameState.currentDraw;
+        if (!newTeams[userId]) {
+            newTeams[userId] = [null, null, null, null, null];
+        }
+
+        const myTeam = [...newTeams[userId]];
+        myTeam[slotIndex] = gameState.currentDraw;
+        newTeams[userId] = myTeam;
 
         // Move to next turn
         const nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
         let nextRound = gameState.round;
 
-        // Check if round is complete
-        const allPlayersDrafted = activePlayers.every(p =>
-            newTeams[p.userId][slotIndex] !== null
+        // Check if round is complete (everyone has placed for this slot index in logic? 
+        // No, usually round is when everyone has had a turn to place ANY character)
+        const totalPlaced = Object.values(newTeams).reduce((acc, team) =>
+            acc + team.filter(slot => slot !== null).length, 0
         );
 
-        if (allPlayersDrafted) {
+        // If everyone has placed their char for the current round
+        if (totalPlaced % activePlayers.length === 0) {
             nextRound++;
         }
 
