@@ -1,14 +1,13 @@
-'use client';
-
-import { useSession } from 'next-auth/react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import RoomLobby from '@/components/RoomLobby';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default function RoomPage({ params }: { params: { roomId: string } }) {
-    const { data: session } = useSession();
+export default async function RoomPage({ params }: { params: { roomId: string } }) {
+    const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
         redirect('/api/auth/signin');
