@@ -31,15 +31,21 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
     });
     const activePlayers = sortedPlayers.filter(p => !p.isSpectator);
-    const isSpectator = sortedPlayers.find(p => p.userId === userId)?.isSpectator || false;
-    const myPlayerIndex = activePlayers.findIndex(p => p.userId === userId);
+
+    // Robust ID comparison (normalize both to avoid mismatch)
+    const normUserId = userId.toLowerCase().trim();
+    const myPlayerIndex = activePlayers.findIndex(p => p.userId.toLowerCase().trim() === normUserId);
+    const isSpectator = sortedPlayers.find(p => p.userId.toLowerCase().trim() === normUserId)?.isSpectator ?? true;
     const isMyTurn = !isSpectator && gameState?.currentTurn === myPlayerIndex;
 
     console.log("[LOBBY DEBUG] Turn Check:", {
-        roomId, userId, myPlayerIndex,
+        roomId,
+        userId: normUserId,
+        foundIndex: myPlayerIndex,
+        activeIds: activePlayers.map(p => p.userId.toLowerCase().trim()),
         currentTurn: gameState?.currentTurn,
         isMyTurn,
-        activePlayersCount: activePlayers.length
+        isSpectator
     });
 
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
@@ -131,17 +137,22 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     };
 
     const placeCharacter = (slotIndex: number) => {
-        if (!gameState || !isMyTurn || !gameState.currentDraw || !activePlayers[myPlayerIndex]) return;
-
-        // Ensure current player has a team array (defensive)
-        const newTeams = { ...gameState.playerTeams };
-        if (!newTeams[userId]) {
-            newTeams[userId] = [null, null, null, null, null];
+        if (!gameState || !isMyTurn || !gameState.currentDraw) {
+            console.warn("[LOBBY DEBUG] Place rejected:", { hasState: !!gameState, isMyTurn, hasDraw: !!gameState?.currentDraw });
+            return;
         }
 
-        const myTeam = [...newTeams[userId]];
+        // Ensure current player has a team array (Self-Repair)
+        const newTeams = { ...gameState.playerTeams };
+        const myKey = Object.keys(newTeams).find(k => k.toLowerCase().trim() === normUserId) || userId;
+
+        if (!newTeams[myKey]) {
+            newTeams[myKey] = [null, null, null, null, null];
+        }
+
+        const myTeam = [...newTeams[myKey]];
         myTeam[slotIndex] = gameState.currentDraw;
-        newTeams[userId] = myTeam;
+        newTeams[myKey] = myTeam;
 
         // Move to next turn
         const nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
