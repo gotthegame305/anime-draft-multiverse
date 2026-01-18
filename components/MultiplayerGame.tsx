@@ -9,10 +9,10 @@ import { getCharacters, CharacterItem } from '@/app/actions';
 interface GameState {
     currentTurn: number; // Player index 0-3
     round: number; // 1-5
-    characterPool: CharacterItem[];
     playerTeams: { [userId: string]: (CharacterItem | null)[] };
     currentDraw: CharacterItem | null;
     status: 'DRAFTING' | 'GRADING' | 'FINISHED';
+    // characterPool is removed from shared state to save bandwidth/DB limits
 }
 
 const ROLES = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'];
@@ -32,8 +32,14 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const myPlayerIndex = activePlayers.findIndex(p => p.userId === userId);
     const isMyTurn = !isSpectator && gameState?.currentTurn === myPlayerIndex;
 
+    const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
+
     useEffect(() => {
-        async function fetchInitialState() {
+        async function init() {
+            // Load character pool locally once
+            const chars = await getCharacters(500);
+            setCharacterPool(chars);
+
             try {
                 const res = await fetch(`/api/rooms/${roomId}/state`);
                 const roomData = await res.json();
@@ -43,11 +49,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     setLoading(false);
                 } else if (roomData.hostId === userId) {
                     // Host initializes if state is missing
-                    const chars = await getCharacters(500);
                     const initialState: GameState = {
                         currentTurn: 0,
                         round: 1,
-                        characterPool: chars,
                         playerTeams: {},
                         currentDraw: null,
                         status: 'DRAFTING',
@@ -59,12 +63,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
                     setGameState(initialState);
                     setLoading(false);
-
-                    await fetch(`/api/rooms/${roomId}/state`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'updateState', data: initialState })
-                    });
+                    syncState(initialState);
                 } else {
                     // Wait for host to initialize
                     const poll = setInterval(async () => {
@@ -78,23 +77,21 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     }, 2000);
                     return () => clearInterval(poll);
                 }
-            } catch {
-                console.error('Failed to initialize game state');
+            } catch (error) {
+                console.error('Failed to initialize game state:', error);
             }
         }
 
-        fetchInitialState();
+        init();
 
         const channel = subscribeToRoom(roomId);
         channel?.bind('state-updated', (data: Partial<GameState>) => {
             console.log("[LOBBY DEBUG] Pusher: state-updated", data);
             setGameState(prev => {
                 if (!prev) return data as GameState;
-                // Merge incoming state but keep local pool if incoming is missing it
                 return {
                     ...prev,
-                    ...data,
-                    characterPool: data.characterPool || prev.characterPool
+                    ...data
                 } as GameState;
             });
             setLoading(false);
@@ -106,9 +103,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     }, [roomId, userId, activePlayers]);
 
     const drawCharacter = () => {
-        if (!gameState || !isMyTurn || gameState.currentDraw) return;
+        if (!gameState || !isMyTurn || gameState.currentDraw || characterPool.length === 0) return;
 
-        const available = gameState.characterPool.filter(c => {
+        const available = characterPool.filter(c => {
             // Check if character already drafted by anyone
             return !Object.values(gameState.playerTeams).some(team =>
                 team.some(slot => slot?.id === c.id)
