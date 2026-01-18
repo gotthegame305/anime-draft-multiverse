@@ -4,17 +4,11 @@ import { NextResponse } from 'next/server';
 export async function GET() {
     const diag = {
         ENV_KEYS_COUNT: Object.keys(process.env).length,
-        ENV_KEYS_PREVIEW: Object.keys(process.env).filter(k =>
-            k.startsWith('GOOGLE') ||
-            k.startsWith('DISCORD') ||
-            k.startsWith('NEXTAUTH') ||
-            k.startsWith('DATABASE') ||
-            k.startsWith('AUTH') ||
-            k.startsWith('VERCEL')
-        ).sort(),
+        ALL_KEYS_ALPHABETICAL: Object.keys(process.env).sort(),
         GOOGLE_CLIENT_ID_EXISTS: !!process.env.GOOGLE_CLIENT_ID,
         DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
-        VERSION_ID: "4.0-DEEP-SCAN",
+        NEXTAUTH_SECRET_EXISTS: !!process.env.NEXTAUTH_SECRET,
+        VERSION_ID: "5.0-EXHAUSTIVE-SCAN",
         timestamp: new Date().toISOString()
     };
 
