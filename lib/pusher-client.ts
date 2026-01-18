@@ -15,12 +15,12 @@ export const pusherClient = pusherKey
 if (!pusherClient) {
     console.warn("Pusher client skip: NEXT_PUBLIC_PUSHER_KEY not found.");
 } else {
-    console.log(`[PUSHER] Initializing with cluster: ${pusherCluster}`);
+    console.log(`[PUSHER] Initializing with cluster: ${pusherCluster} (${process.env.NEXT_PUBLIC_PUSHER_CLUSTER ? 'from env' : 'fallback'})`);
     pusherClient.connection.bind('connected', () => {
         console.log('[PUSHER] Connected to real-time service');
     });
     pusherClient.connection.bind('error', (err: unknown) => {
-        console.error('[PUSHER] Connection error:', err);
+        console.error('[PUSHER] Connection error details:', JSON.stringify(err));
     });
     pusherClient.connection.bind('disconnected', () => {
         console.warn('[PUSHER] Disconnected');
