@@ -33,6 +33,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
     const [room, setRoom] = useState<Room | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [pusherStatus, setPusherStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting');
 
     const fetchRoom = useCallback(async () => {
         try {
@@ -64,6 +65,18 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
 
         // Subscribe to real-time updates
         const channel = subscribeToRoom(roomId);
+
+        // Track connection status
+        if (channel) {
+            const pusher = channel.pusher;
+            const updateStatus = () => {
+                console.log("[LOBBY DEBUG] Pusher Status Update:", pusher.connection.state);
+                setPusherStatus(pusher.connection.state as any);
+            };
+
+            pusher.connection.bind('state_change', updateStatus);
+            updateStatus();
+        }
 
         channel?.bind('player-joined', (data: Room) => {
             console.log("[LOBBY DEBUG] Pusher: player-joined", data);
@@ -168,6 +181,19 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                         <div className="inline-block bg-blue-600 px-8 py-3 rounded-xl relative">
                             <p className="text-gray-300 text-sm">Room Code</p>
                             <p className="text-white text-3xl font-mono font-bold tracking-widest">{room.code}</p>
+
+                            {/* Pusher Status Badge */}
+                            <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 bg-slate-900 shadow-lg">
+                                <div className={`w-1.5 h-1.5 rounded-full ${pusherStatus === 'connected' ? 'bg-green-500 animate-pulse' :
+                                        pusherStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                                    }`} />
+                                <span className={
+                                    pusherStatus === 'connected' ? 'text-green-400' :
+                                        pusherStatus === 'error' ? 'text-red-400' : 'text-yellow-400'
+                                }>
+                                    {pusherStatus.toUpperCase()}
+                                </span>
+                            </div>
                         </div>
                         <button
                             onClick={fetchRoom}
