@@ -133,12 +133,16 @@ export async function POST(
         }
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[DEBUG] POST Error updating room state:', error);
+
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorCode = (error as { code?: string }).code;
+
         return NextResponse.json({
             error: 'Failed to update room',
-            details: error.message,
-            code: error.code // Prisma error code
+            details: errorMessage,
+            code: errorCode // Prisma error code
         }, { status: 500 });
     }
 }

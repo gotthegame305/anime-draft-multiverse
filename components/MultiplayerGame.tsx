@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
@@ -49,6 +49,43 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     });
 
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
+
+    const syncState = useCallback(async (state: GameState) => {
+        await fetch(`/api/rooms/${roomId}/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'updateState', data: state })
+        });
+    }, [roomId]);
+
+    const calculateWinner = useCallback(async (finalState: GameState) => {
+        // Calculate scores for each player
+        const scores: { [userId: string]: number } = {};
+
+        Object.entries(finalState.playerTeams).forEach(([playerId, team]) => {
+            let score = 0;
+            team.forEach((char, idx) => {
+                if (!char) return;
+                const roleKey = ROLE_KEYS[idx] as keyof typeof char.stats.roleStats;
+                const roleRating = (char.stats.roleStats[roleKey] as number) || 1;
+                const favorites = Number(char.stats.favorites) || 100;
+                const base = Math.log(favorites);
+                score += base + (roleRating * 3);
+            });
+            scores[playerId] = score;
+        });
+
+        // Find winner
+        const winnerId = Object.entries(scores).reduce((a, b) =>
+            scores[a[0]] > scores[b[0]] ? a : b
+        )[0];
+
+        await fetch(`/api/rooms/${roomId}/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'end', data: { winnerId, scores } })
+        });
+    }, [roomId]);
 
     useEffect(() => {
         async function init() {
@@ -116,7 +153,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         return () => {
             unsubscribeFromRoom(roomId);
         };
-    }, [roomId, userId, activePlayers]);
+    }, [roomId, userId, activePlayers, syncState]);
 
     const drawCharacter = () => {
         if (!gameState || !isMyTurn || gameState.currentDraw || characterPool.length === 0) return;
@@ -187,42 +224,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         }
     };
 
-    const syncState = async (state: GameState) => {
-        await fetch(`/api/rooms/${roomId}/state`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'updateState', data: state })
-        });
-    };
-
-    const calculateWinner = async (finalState: GameState) => {
-        // Calculate scores for each player
-        const scores: { [userId: string]: number } = {};
-
-        Object.entries(finalState.playerTeams).forEach(([playerId, team]) => {
-            let score = 0;
-            team.forEach((char, idx) => {
-                if (!char) return;
-                const roleKey = ROLE_KEYS[idx] as keyof typeof char.stats.roleStats;
-                const roleRating = (char.stats.roleStats[roleKey] as number) || 1;
-                const favorites = Number(char.stats.favorites) || 100;
-                const base = Math.log(favorites);
-                score += base + (roleRating * 3);
-            });
-            scores[playerId] = score;
-        });
-
-        // Find winner
-        const winnerId = Object.entries(scores).reduce((a, b) =>
-            scores[a[0]] > scores[b[0]] ? a : b
-        )[0];
-
-        await fetch(`/api/rooms/${roomId}/state`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'end', data: { winnerId, scores } })
-        });
-    };
 
     if (loading || !gameState) {
         return (
