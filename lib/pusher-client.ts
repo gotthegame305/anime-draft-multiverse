@@ -3,15 +3,19 @@
 import Pusher from 'pusher-js';
 
 const pusherKey = process.env.NEXT_PUBLIC_PUSHER_KEY;
-const pusherCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+const pusherCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'us2';
 
 export const pusherClient = pusherKey
-    ? new Pusher(pusherKey, { cluster: pusherCluster || 'mt1' })
+    ? new Pusher(pusherKey, {
+        cluster: pusherCluster,
+        forceTLS: true
+    })
     : null;
 
 if (!pusherClient) {
     console.warn("Pusher client skip: NEXT_PUBLIC_PUSHER_KEY not found.");
 } else {
+    console.log(`[PUSHER] Initializing with cluster: ${pusherCluster}`);
     pusherClient.connection.bind('connected', () => {
         console.log('[PUSHER] Connected to real-time service');
     });
