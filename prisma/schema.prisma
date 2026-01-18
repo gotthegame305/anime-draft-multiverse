@@ -96,3 +96,34 @@ model ChatMessage {
   
   createdAt DateTime @default(now())
 }
+
+model Room {
+  id          String      @id @default(cuid())
+  code        String      @unique // 6-character join code
+  hostId      String
+  status      RoomStatus  @default(WAITING)
+  maxPlayers  Int         @default(4)
+  players     RoomPlayer[]
+  createdAt   DateTime    @default(now())
+  startedAt   DateTime?
+  gameState   Json?       // Current game state
+}
+
+model RoomPlayer {
+  id          String   @id @default(cuid())
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId      String
+  isSpectator Boolean  @default(false)
+  team        Json?    // Their drafted team
+  joinedAt    DateTime @default(now())
+  
+  @@unique([roomId, userId])
+}
+
+enum RoomStatus {
+  WAITING
+  DRAFTING
+  FINISHED
+}
+

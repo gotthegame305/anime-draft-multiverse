@@ -27,6 +27,16 @@ export default function Home() {
           <span className="relative z-10">ENTER THE DRAFT</span>
           <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 group-hover:opacity-20 transition-opacity" />
         </Link>
+
+        {/* Multiplayer Link */}
+        <div className="mt-4">
+          <Link
+            href="/lobby"
+            className="text-indigo-400 hover:text-indigo-300 font-bold tracking-widest text-lg transition-all border-b-2 border-transparent hover:border-indigo-400"
+          >
+            MULTIPLAYER LOBBY
+          </Link>
+        </div>
       </div>
 
       <div className="relative z-10 w-full px-4 mt-8">
