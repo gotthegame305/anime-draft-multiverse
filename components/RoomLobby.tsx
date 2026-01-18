@@ -71,7 +71,12 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
             const pusher = channel.pusher;
             const updateStatus = () => {
                 console.log("[LOBBY DEBUG] Pusher Status Update:", pusher.connection.state);
-                setPusherStatus(pusher.connection.state as any);
+                const state = pusher.connection.state;
+                if (state === 'connected' || state === 'connecting' || state === 'disconnected') {
+                    setPusherStatus(state);
+                } else if (state === 'failed' || state === 'unavailable') {
+                    setPusherStatus('error');
+                }
             };
 
             pusher.connection.bind('state_change', updateStatus);
@@ -185,7 +190,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                             {/* Pusher Status Badge */}
                             <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 bg-slate-900 shadow-lg">
                                 <div className={`w-1.5 h-1.5 rounded-full ${pusherStatus === 'connected' ? 'bg-green-500 animate-pulse' :
-                                        pusherStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
+                                    pusherStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'
                                     }`} />
                                 <span className={
                                     pusherStatus === 'connected' ? 'text-green-400' :
