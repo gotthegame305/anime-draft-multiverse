@@ -86,7 +86,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         fetchInitialState();
 
         const channel = subscribeToRoom(roomId);
-        channel.bind('state-updated', (data: GameState) => {
+        channel?.bind('state-updated', (data: GameState) => {
             setGameState(data);
             setLoading(false);
         });

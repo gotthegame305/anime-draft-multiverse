@@ -50,15 +50,15 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
         // Subscribe to real-time updates
         const channel = subscribeToRoom(roomId);
 
-        channel.bind('player-joined', () => {
+        channel?.bind('player-joined', () => {
             fetchRoom(); // Refresh room state
         });
 
-        channel.bind('player-left', () => {
+        channel?.bind('player-left', () => {
             fetchRoom();
         });
 
-        channel.bind('game-started', () => {
+        channel?.bind('game-started', () => {
             router.push(`/game/${roomId}`);
         });
 
