@@ -4,25 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
-import { getCharacters } from '@/app/actions';
-
-interface CharacterItem {
-    id: number;
-    name: string;
-    imageUrl: string;
-    animeUniverse: string;
-    stats: {
-        favorites: number;
-        roleStats: {
-            captain: number;
-            vice: number;
-            tank: number;
-            duelist: number;
-            support: number;
-            reason?: string;
-        };
-    };
-}
+import { getCharacters, CharacterItem } from '@/app/actions';
 
 interface GameState {
     currentTurn: number; // Player index 0-3
@@ -33,7 +15,8 @@ interface GameState {
     status: 'DRAFTING' | 'GRADING' | 'FINISHED';
 }
 
-const ROLES = ['CAPTAIN', 'VICE', 'TANK', 'DUELIST', 'SUPPORT'];
+const ROLES = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'];
+const ROLE_KEYS = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
 
 export default function MultiplayerGame({ roomId, userId, players }: {
     roomId: string;
@@ -184,7 +167,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             let score = 0;
             team.forEach((char, idx) => {
                 if (!char) return;
-                const roleKey = ROLES[idx].toLowerCase() as keyof typeof char.stats.roleStats;
+                const roleKey = ROLE_KEYS[idx] as keyof typeof char.stats.roleStats;
                 const roleRating = (char.stats.roleStats[roleKey] as number) || 1;
                 const favorites = Number(char.stats.favorites) || 100;
                 const base = Math.log(favorites);
