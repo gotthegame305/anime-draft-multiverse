@@ -10,6 +10,8 @@ export async function GET() {
         NEXTAUTH_SECRET: !!process.env.NEXTAUTH_SECRET,
         NEXTAUTH_URL: !!process.env.NEXTAUTH_URL,
         DATABASE_URL: !!process.env.DATABASE_URL,
+        VERSION_ID: "3.0-DEFINITIVE",
+        COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA || 'no-sha',
         NODE_ENV: process.env.NODE_ENV,
         VERCEL_ENV: process.env.VERCEL_ENV,
         timestamp: new Date().toISOString()
