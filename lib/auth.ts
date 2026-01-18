@@ -4,12 +4,12 @@ import GoogleProvider from "next-auth/providers/google"
 import DiscordProvider from "next-auth/providers/discord"
 import prisma from "@/lib/prisma"
 
-const getEnv = (key: string) => process.env[key] || process.env[`NEXT_PUBLIC_${key}`] || "";
+const getEnv = (key: string) => process.env[key] || "";
 
 export const authOptions: NextAuthOptions = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     adapter: PrismaAdapter(prisma as any),
-    secret: getEnv("NEXTAUTH_SECRET") || "fallback_secret_for_build",
+    secret: process.env.NEXTAUTH_SECRET,
     providers: [
         GoogleProvider({
             clientId: getEnv("GOOGLE_CLIENT_ID") || "placeholder_id",

@@ -9,19 +9,31 @@ export async function GET(
     { params }: { params: { roomId: string } }
 ) {
     try {
+        console.log(`[DEBUG] Fetching state for room: ${params.roomId}`);
+
+        if (!params.roomId) {
+            console.error('[DEBUG] Room ID missing from params');
+            return NextResponse.json({ error: 'Room ID required' }, { status: 400 });
+        }
+
         const room = await prisma.room.findUnique({
             where: { id: params.roomId },
             include: { players: true }
         });
 
         if (!room) {
+            console.warn(`[DEBUG] Room not found: ${params.roomId}`);
             return NextResponse.json({ error: 'Room not found' }, { status: 404 });
         }
 
+        console.log(`[DEBUG] Room found: ${room.code}, Status: ${room.status}, Players: ${room.players.length}`);
         return NextResponse.json(room);
-    } catch (error) {
-        console.error('Error fetching room state:', error);
-        return NextResponse.json({ error: 'Failed to fetch room' }, { status: 500 });
+    } catch (error: any) {
+        console.error('[DEBUG] FATAL ERROR fetching room state:', error);
+        return NextResponse.json({
+            error: 'Failed to fetch room',
+            details: error?.message || 'Unknown error'
+        }, { status: 500 });
     }
 }
 

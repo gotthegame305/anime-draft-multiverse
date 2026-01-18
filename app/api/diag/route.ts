@@ -13,7 +13,9 @@ export async function GET() {
         NEXTAUTH_SECRET_EXISTS: !!(process.env.NEXTAUTH_SECRET || process.env.NEXT_PUBLIC_NEXTAUTH_SECRET),
         PUSHER_KEYS_EXISTS: !!(process.env.PUSHER_KEY && process.env.PUSHER_CLUSTER && process.env.PUSHER_APP_ID),
         NEXT_PUBLIC_PUSHER_EXISTS: !!(process.env.NEXT_PUBLIC_PUSHER_KEY && process.env.NEXT_PUBLIC_PUSHER_CLUSTER),
-        VERSION_ID: "7.0-PUSHER-SCAN",
+        NODE_ENV: process.env.NODE_ENV,
+        NEXTAUTH_URL: process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_NEXTAUTH_URL || "auto",
+        VERSION_ID: "8.0-SESSION-SYNC-DEBUG",
         timestamp: new Date().toISOString()
     };
 
