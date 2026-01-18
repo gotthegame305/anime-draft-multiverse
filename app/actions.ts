@@ -3,6 +3,15 @@
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
+interface DbCharacter {
+    id: number;
+    name: string;
+    imageUrl: string;
+    animeUniverse: string;
+    stats: unknown;
+    roleRatings: unknown;
+}
+
 export interface RoleStats {
     captain: number;
     viceCaptain: number;
@@ -34,8 +43,7 @@ export async function getCharacters(limit = 500) {
         })
 
         // Just map them, don't slice yet. Client will filter and shuffle.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return characters.map((char: any) => {
+        return characters.map((char: DbCharacter) => {
             const stats = char.stats as { favorites: number };
 
             // Use stored AI ratings if available, otherwise random seed

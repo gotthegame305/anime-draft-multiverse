@@ -1,8 +1,16 @@
 import { getLeaderboard } from '@/app/actions';
 import Image from 'next/image';
 
+interface LeaderboardUser {
+    id: string;
+    username: string | null;
+    avatarUrl: string | null;
+    wins: number;
+    losses: number;
+}
+
 export default async function Leaderboard() {
-    const users = await getLeaderboard();
+    const users: LeaderboardUser[] = await getLeaderboard();
 
     return (
         <div className="w-full max-w-4xl mx-auto p-6 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-700 shadow-2xl">
@@ -17,7 +25,7 @@ export default async function Leaderboard() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {users.map((user: any, index: number) => (
+                    {users.map((user: LeaderboardUser, index: number) => (
                         <div
                             key={user.id}
                             className="flex items-center justify-between p-4 bg-slate-800 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors"
