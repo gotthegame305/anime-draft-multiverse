@@ -22,12 +22,12 @@ export default function GamePage({ params }: { params: { roomId: string } }) {
                 const room = await res.json();
 
                 if (res.ok) {
-                    setPlayers(room.players.map((p: any) => ({
+                    setPlayers(room.players.map((p: { userId: string; isSpectator: boolean }) => ({
                         userId: p.userId,
                         isSpectator: p.isSpectator
                     })));
                 }
-            } catch (err) {
+            } catch {
                 console.error('Failed to load room');
             } finally {
                 setLoading(false);

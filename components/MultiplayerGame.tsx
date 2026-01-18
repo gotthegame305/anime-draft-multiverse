@@ -94,7 +94,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     }, 2000);
                     return () => clearInterval(poll);
                 }
-            } catch (err) {
+            } catch {
                 console.error('Failed to initialize game state');
             }
         }

@@ -38,7 +38,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                 } else {
                     setError(data.error || 'Room not found');
                 }
-            } catch (err) {
+            } catch {
                 setError('Failed to load room');
             } finally {
                 setLoading(false);
@@ -78,7 +78,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
             if (res.ok) {
                 router.push(`/game/${roomId}`);
             }
-        } catch (err) {
+        } catch {
             setError('Failed to start game');
         }
     };
@@ -90,8 +90,8 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'leave' })
             });
-        } catch (err) {
-            console.error('Failed to leave room:', err);
+        } catch {
+            console.error('Failed to leave room');
         }
         router.push('/lobby');
     };

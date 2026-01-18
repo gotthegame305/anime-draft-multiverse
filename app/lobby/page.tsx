@@ -22,7 +22,7 @@ export default function LobbyPage() {
             } else {
                 setError(room.error || 'Failed to create room');
             }
-        } catch (err) {
+        } catch {
             setError('Network error');
         } finally {
             setLoading(false);
@@ -50,7 +50,7 @@ export default function LobbyPage() {
             } else {
                 setError(room.error || 'Failed to join room');
             }
-        } catch (err) {
+        } catch {
             setError('Network error');
         } finally {
             setLoading(false);
