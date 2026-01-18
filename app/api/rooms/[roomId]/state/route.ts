@@ -28,11 +28,12 @@ export async function GET(
 
         console.log(`[DEBUG] Room found: ${room.code}, Status: ${room.status}, Players: ${room.players.length}`);
         return NextResponse.json(room);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[DEBUG] FATAL ERROR fetching room state:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return NextResponse.json({
             error: 'Failed to fetch room',
-            details: error?.message || 'Unknown error'
+            details: errorMessage
         }, { status: 500 });
     }
 }
