@@ -3,12 +3,15 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
     const diag = {
+        PROJECT_NAME: process.env.VERCEL_PROJECT_NAME,
+        ENVIRONMENT: process.env.VERCEL_ENV,
+        REGION: process.env.VERCEL_REGION,
         ENV_KEYS_COUNT: Object.keys(process.env).length,
-        ALL_KEYS_ALPHABETICAL: Object.keys(process.env).sort(),
-        GOOGLE_CLIENT_ID_EXISTS: !!process.env.GOOGLE_CLIENT_ID,
+        ALL_KEYS: Object.keys(process.env).sort(),
+        GOOGLE_CLIENT_ID_EXISTS: !!(process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID),
         DATABASE_URL_EXISTS: !!process.env.DATABASE_URL,
-        NEXTAUTH_SECRET_EXISTS: !!process.env.NEXTAUTH_SECRET,
-        VERSION_ID: "5.0-EXHAUSTIVE-SCAN",
+        NEXTAUTH_SECRET_EXISTS: !!(process.env.NEXTAUTH_SECRET || process.env.NEXT_PUBLIC_NEXTAUTH_SECRET),
+        VERSION_ID: "6.0-IDENTITY-SCAN",
         timestamp: new Date().toISOString()
     };
 
