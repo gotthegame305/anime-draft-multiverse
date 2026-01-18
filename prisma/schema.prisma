@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Custom fields
+  username      String?   @unique
+  avatarUrl     String?
+  wins          Int       @default(0)
+  losses        Int       @default(0)
+  
+  // Relations
+  matchesWon    Match[]   @relation("UserMatchesWon")
+  messages      ChatMessage[]
+}
+
+model Account {
+  id                 String  @id @default(uuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Character {
+  id            Int      @id @unique // "id (Int, unique)"
+  name          String
+  imageUrl      String
+  animeUniverse String
+  stats         Json
+  roleRatings   Json? // Stores { captain: 5, vice: 4, tank: 2, ... reason: "..." }
+}
+
+model Match {
+  id          String   @id @default(uuid()) // ID type not specified, UUID is standard for matches
+  playedAt    DateTime @default(now())
+  
+  winnerId    String
+  winner      User     @relation("UserMatchesWon", fields: [winnerId], references: [id])
+  
+  // "teamDrafted (JSON object storing the 5 characters the user picked)"
+  // Note: match implies 2 players usually, but prompt only mentions "winner" and "teamDrafted". 
+  // Assuming strict adherence to prompt:
+  teamDrafted Json
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  
+  createdAt DateTime @default(now())
+}

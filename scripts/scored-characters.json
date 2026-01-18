@@ -1,0 +1,321 @@
+[
+    {
+        "name": "Son, Gokuu",
+        "roleRatings": {
+            "captain": 3,
+            "viceCaptain": 2,
+            "tank": 4,
+            "duelist": 5,
+            "support": 1,
+            "reason": "Unmatched 1v1 fighter (Duelist), decent tankiness. Poor leader due to carelessness."
+        }
+    },
+    {
+        "name": "Vegeta",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 4,
+            "tank": 3,
+            "duelist": 5,
+            "support": 1,
+            "reason": "Elite Duelist. Good Vice Captain as he enforces discipline, but too arrogant for main Captain."
+        }
+    },
+    {
+        "name": "Piccolo",
+        "roleRatings": {
+            "captain": 4,
+            "viceCaptain": 5,
+            "tank": 4,
+            "duelist": 3,
+            "support": 4,
+            "reason": "Perfect Vice Captain: Wise, tactical, and protective. Great Tank (regeneration) and mentor (Support)."
+        }
+    },
+    {
+        "name": "Monkey D., Luffy",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 1,
+            "tank": 4,
+            "duelist": 5,
+            "support": 2,
+            "reason": "The ultimate Captain (Charisma). High Tank (Rubber) and Duelist. Zero tactical skill for Vice/Support."
+        }
+    },
+    {
+        "name": "Roronoa, Zoro",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 5,
+            "tank": 5,
+            "duelist": 5,
+            "support": 1,
+            "reason": "The defining Vice Captain. Insane endurance (Tank) and 1v1 skill (Duelist)."
+        }
+    },
+    {
+        "name": "Nami",
+        "roleRatings": {
+            "captain": 4,
+            "viceCaptain": 3,
+            "tank": 1,
+            "duelist": 2,
+            "support": 5,
+            "reason": "Top-tier Support (Navigator/Weather). Effectively runs the ship (Captain qualities)."
+        }
+    },
+    {
+        "name": "Sanji",
+        "roleRatings": {
+            "captain": 3,
+            "viceCaptain": 4,
+            "tank": 3,
+            "duelist": 4,
+            "support": 4,
+            "reason": "Versatile. Strategic (Vice), clutch saves (Support/Tank), and strong fighter (Duelist)."
+        }
+    },
+    {
+        "name": "Tony Tony, Chopper",
+        "roleRatings": {
+            "captain": 1,
+            "viceCaptain": 1,
+            "tank": 3,
+            "duelist": 2,
+            "support": 5,
+            "reason": "Dedicated Support (Doctor). Monster Point gives bursts of Tankiness."
+        }
+    },
+    {
+        "name": "Nico, Robin",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 4,
+            "tank": 2,
+            "duelist": 3,
+            "support": 5,
+            "reason": "Intellect/Espionage Support. Clutch battlefield control."
+        }
+    },
+    {
+        "name": "Uzumaki, Naruto",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 2,
+            "tank": 5,
+            "duelist": 4,
+            "support": 3,
+            "reason": "Inspirational Captain (Hokage). Massive Chakra stamina (Tank). Shadow Clones offer Support utility."
+        }
+    },
+    {
+        "name": "Uchiha, Sasuke",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 4,
+            "tank": 2,
+            "duelist": 5,
+            "support": 2,
+            "reason": "Pure Duelist genius. Shadow Hokage role fits Vice Captain. Lacks charisma for Captain."
+        }
+    },
+    {
+        "name": "Haruno, Sakura",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 3,
+            "tank": 3,
+            "duelist": 2,
+            "support": 5,
+            "reason": "Top-tier Medical Support. 100 Healings Seal makes her a surprising Tank."
+        }
+    },
+    {
+        "name": "Hatake, Kakashi",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 5,
+            "tank": 2,
+            "duelist": 4,
+            "support": 4,
+            "reason": "Jack of all trades. Perfect leader or advisor. High tactical Support."
+        }
+    },
+    {
+        "name": "Nara, Shikamaru",
+        "roleRatings": {
+            "captain": 4,
+            "viceCaptain": 5,
+            "tank": 1,
+            "duelist": 1,
+            "support": 5,
+            "reason": "The ultimate Strategist (Support/Vice). Can lead, but prefers advising. Low physical stats."
+        }
+    },
+    {
+        "name": "Uchiha, Madara",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 1,
+            "tank": 4,
+            "duelist": 5,
+            "support": 1,
+            "reason": "One-man army (Duelist). Commands absolute obedience (Captain). Too dominant to support others."
+        }
+    },
+    {
+        "name": "Kurosaki, Ichigo",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 2,
+            "tank": 4,
+            "duelist": 5,
+            "support": 1,
+            "reason": "Pure power Duelist. Incredible durability (Tank). Not a leader or strategist."
+        }
+    },
+    {
+        "name": "Aizen, Sousuke",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 5,
+            "tank": 3,
+            "duelist": 5,
+            "support": 5,
+            "reason": "Broken stats. Master manipulator (Captain/Vice) and illusionist (Support)."
+        }
+    },
+    {
+        "name": "Freecss, Gon",
+        "roleRatings": {
+            "captain": 3,
+            "viceCaptain": 1,
+            "tank": 4,
+            "duelist": 4,
+            "support": 1,
+            "reason": "Unrelenting stamina (Tank). Simple, instinctual fighter (Duelist). Too naive for leadership."
+        }
+    },
+    {
+        "name": "Zoldyck, Killua",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 5,
+            "tank": 2,
+            "duelist": 5,
+            "support": 3,
+            "reason": "Perfect partner/Vice. Deadly assassin skills (Duelist). Godspeed offers support utility."
+        }
+    },
+    {
+        "name": "Morow, Hisoka",
+        "roleRatings": {
+            "captain": 1,
+            "viceCaptain": 1,
+            "tank": 3,
+            "duelist": 5,
+            "support": 4,
+            "reason": "Unpredictable Duelist. Bungee Gum offers insane battlefield control (Support)."
+        }
+    },
+    {
+        "name": "Gojou, Satoru",
+        "roleRatings": {
+            "captain": 3,
+            "viceCaptain": 1,
+            "tank": 5,
+            "duelist": 5,
+            "support": 3,
+            "reason": "Untouchable (Tank). Strongest sorcerer (Duelist). Bad teacher/leader personality."
+        }
+    },
+    {
+        "name": "Itadori, Yuuji",
+        "roleRatings": {
+            "captain": 3,
+            "viceCaptain": 2,
+            "tank": 5,
+            "duelist": 4,
+            "support": 1,
+            "reason": "Physical powerhouse (Tank/Duelist). Natural charisma but inexperienced."
+        }
+    },
+    {
+        "name": "Fushiguro, Megumi",
+        "roleRatings": {
+            "captain": 4,
+            "viceCaptain": 4,
+            "tank": 2,
+            "duelist": 3,
+            "support": 5,
+            "reason": "Tactical genius. Shikigami offer immense utility (Support) and flexibility."
+        }
+    },
+    {
+        "name": "Senju, Tobirama",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 4,
+            "tank": 2,
+            "duelist": 4,
+            "support": 5,
+            "reason": "Created the Ninja Academy & Police Force (Captain). Invented Shadow Clones & Flying Raijin (Support Genius)."
+        }
+    },
+    {
+        "name": "Pain",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 5,
+            "tank": 5,
+            "duelist": 5,
+            "support": 4,
+            "reason": "Leader of Akatsuki. Six Paths shared vision makes him nearly impossible to flank (Tank/Duelist)."
+        }
+    },
+    {
+        "name": "Jiraiya",
+        "roleRatings": {
+            "captain": 3,
+            "viceCaptain": 5,
+            "tank": 4,
+            "duelist": 4,
+            "support": 5,
+            "reason": "Legendary Sannin. Mentor to Hokages (Support). Sage Mode grants immense durability (Tank) and versatility."
+        }
+    },
+    {
+        "name": "Hoshigaki, Kisame",
+        "roleRatings": {
+            "captain": 2,
+            "viceCaptain": 3,
+            "tank": 5,
+            "duelist": 4,
+            "support": 1,
+            "reason": "The 'Tailless Tailed Beast'. Massive chakra reserves and Samehada regeneration make him an elite Tank."
+        }
+    },
+    {
+        "name": "Hyuuga, Hinata",
+        "roleRatings": {
+            "captain": 1,
+            "viceCaptain": 2,
+            "tank": 2,
+            "duelist": 3,
+            "support": 5,
+            "reason": "Byakugan offers superior vision and tracking (Support). Gentle Fist can shut down enemy chakra flow."
+        }
+    },
+    {
+        "name": "Senju, Hashirama",
+        "roleRatings": {
+            "captain": 5,
+            "viceCaptain": 5,
+            "tank": 5,
+            "duelist": 5,
+            "support": 5,
+            "reason": "God of Shinobi. Founder of the Hidden Leaf (Captain). Wood Style allows instant regeneration (Tank) and map control."
+        }
+    }
+]
