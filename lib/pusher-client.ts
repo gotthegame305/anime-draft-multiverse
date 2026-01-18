@@ -11,6 +11,16 @@ export const pusherClient = pusherKey
 
 if (!pusherClient) {
     console.warn("Pusher client skip: NEXT_PUBLIC_PUSHER_KEY not found.");
+} else {
+    pusherClient.connection.bind('connected', () => {
+        console.log('[PUSHER] Connected to real-time service');
+    });
+    pusherClient.connection.bind('error', (err: any) => {
+        console.error('[PUSHER] Connection error:', err);
+    });
+    pusherClient.connection.bind('disconnected', () => {
+        console.warn('[PUSHER] Disconnected');
+    });
 }
 
 export function subscribeToRoom(roomId: string) {

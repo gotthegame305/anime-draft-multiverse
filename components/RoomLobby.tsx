@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
@@ -34,30 +34,30 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    useEffect(() => {
-        // Fetch initial room state
-        async function fetchRoom() {
-            try {
-                const res = await fetch(`/api/rooms/${roomId}/state?t=${Date.now()}`, {
-                    cache: 'no-store',
-                    headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
-                });
-                const data = await res.json();
+    const fetchRoom = useCallback(async () => {
+        try {
+            setLoading(true);
+            const res = await fetch(`/api/rooms/${roomId}/state?t=${Date.now()}`, {
+                cache: 'no-store',
+                headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+            });
+            const data = await res.json();
 
-                if (res.ok) {
-                    console.log("[LOBBY DEBUG] Room state fetched:", data);
-                    setRoom(data);
-                } else {
-                    setError(data.error || 'Room not found');
-                }
-            } catch (err) {
-                console.error("[LOBBY DEBUG] Fetch error:", err);
-                setError('Failed to load room');
-            } finally {
-                setLoading(false);
+            if (res.ok) {
+                console.log("[LOBBY DEBUG] Room state fetched:", data);
+                setRoom(data);
+            } else {
+                setError(data.error || 'Room not found');
             }
+        } catch (err) {
+            console.error("[LOBBY DEBUG] Fetch error:", err);
+            setError('Failed to load room');
+        } finally {
+            setLoading(false);
         }
+    }, [roomId]);
 
+    useEffect(() => {
         fetchRoom();
 
         console.log("[LOBBY DEBUG] Session UserID:", userId);
@@ -65,12 +65,22 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
         // Subscribe to real-time updates
         const channel = subscribeToRoom(roomId);
 
-        channel?.bind('player-joined', () => {
-            fetchRoom(); // Refresh room state
+        channel?.bind('player-joined', (data: Room) => {
+            console.log("[LOBBY DEBUG] Pusher: player-joined", data);
+            if (data && data.players) {
+                setRoom(data);
+            } else {
+                fetchRoom();
+            }
         });
 
-        channel?.bind('player-left', () => {
-            fetchRoom();
+        channel?.bind('player-left', (data: Room) => {
+            console.log("[LOBBY DEBUG] Pusher: player-left", data);
+            if (data && data.players) {
+                setRoom(data);
+            } else {
+                fetchRoom();
+            }
         });
 
         channel?.bind('game-started', () => {
@@ -80,7 +90,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
         return () => {
             unsubscribeFromRoom(roomId);
         };
-    }, [roomId, router]);
+    }, [roomId, router, fetchRoom, userId]);
 
     const handleStartGame = async () => {
         try {
@@ -154,9 +164,18 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                 {/* Header */}
                 <div className="text-center">
                     <h1 className="text-4xl font-bold text-white mb-2">Game Lobby</h1>
-                    <div className="inline-block bg-blue-600 px-8 py-3 rounded-xl">
-                        <p className="text-gray-300 text-sm">Room Code</p>
-                        <p className="text-white text-3xl font-mono font-bold tracking-widest">{room.code}</p>
+                    <div className="flex flex-col items-center gap-2">
+                        <div className="inline-block bg-blue-600 px-8 py-3 rounded-xl relative">
+                            <p className="text-gray-300 text-sm">Room Code</p>
+                            <p className="text-white text-3xl font-mono font-bold tracking-widest">{room.code}</p>
+                        </div>
+                        <button
+                            onClick={fetchRoom}
+                            disabled={loading}
+                            className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs py-1 px-3 rounded-full flex items-center gap-1 transition-colors border border-slate-700"
+                        >
+                            <span>🔄</span> Manual Refresh
+                        </button>
                     </div>
                 </div>
 

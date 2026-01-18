@@ -74,10 +74,7 @@ export async function POST(req: Request) {
         });
 
         // Trigger real-time event
-        await triggerRoomEvent(room.id, 'player-joined', {
-            userId: session.user.id,
-            isSpectator: isSpectator || false,
-        });
+        await triggerRoomEvent(room.id, 'player-joined', updatedRoom);
 
         return NextResponse.json(updatedRoom);
     } catch (error) {
