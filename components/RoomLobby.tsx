@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 
 interface Player {
@@ -161,10 +162,11 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                                 >
                                     {avatar ? (
                                         <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-blue-500">
-                                            <img
+                                            <Image
                                                 src={avatar}
                                                 alt={displayName}
-                                                className="object-cover w-full h-full"
+                                                fill
+                                                className="object-cover"
                                             />
                                         </div>
                                     ) : (

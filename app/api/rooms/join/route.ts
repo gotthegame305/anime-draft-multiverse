@@ -33,13 +33,13 @@ export async function POST(req: Request) {
         }
 
         // Check if already in room
-        const existing = room.players.find((p: any) => p.userId === session.user.id);
+        const existing = room.players.find((p: { userId: string }) => p.userId === session.user.id);
         if (existing) {
             return NextResponse.json(room);
         }
 
         // Check player limit
-        const activePlayers = room.players.filter((p: any) => !p.isSpectator);
+        const activePlayers = room.players.filter((p: { isSpectator: boolean }) => !p.isSpectator);
         if (!isSpectator && activePlayers.length >= room.maxPlayers) {
             return NextResponse.json({ error: 'Room is full' }, { status: 400 });
         }
