@@ -38,15 +38,20 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
         // Fetch initial room state
         async function fetchRoom() {
             try {
-                const res = await fetch(`/api/rooms/${roomId}/state`);
+                const res = await fetch(`/api/rooms/${roomId}/state?t=${Date.now()}`, {
+                    cache: 'no-store',
+                    headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+                });
                 const data = await res.json();
 
                 if (res.ok) {
+                    console.log("[LOBBY DEBUG] Room state fetched:", data);
                     setRoom(data);
                 } else {
                     setError(data.error || 'Room not found');
                 }
-            } catch {
+            } catch (err) {
+                console.error("[LOBBY DEBUG] Fetch error:", err);
                 setError('Failed to load room');
             } finally {
                 setLoading(false);
@@ -54,6 +59,8 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
         }
 
         fetchRoom();
+
+        console.log("[LOBBY DEBUG] Session UserID:", userId);
 
         // Subscribe to real-time updates
         const channel = subscribeToRoom(roomId);
@@ -133,6 +140,14 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
     const spectators = room.players.filter(p => p.isSpectator);
     const canStart = isHost && activePlayers.length >= 2 && activePlayers.length <= 4;
 
+    console.log("[LOBBY DEBUG] Render check:", {
+        isHost,
+        roomHostId: room.hostId,
+        sessionUserId: userId,
+        activePlayersCount: activePlayers.length,
+        canStart
+    });
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-8">
             <div className="max-w-4xl mx-auto space-y-6">
@@ -152,8 +167,8 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {activePlayers.map((player, idx) => {
-                            const displayName = player.user.username || player.user.name || `Player ${idx + 1}`;
-                            const avatar = player.user.avatarUrl || player.user.image;
+                            const displayName = player.user?.username || player.user?.name || `Player ${idx + 1}`;
+                            const avatar = player.user?.avatarUrl || player.user?.image;
 
                             return (
                                 <div
