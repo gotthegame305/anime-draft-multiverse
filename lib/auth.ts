@@ -4,15 +4,6 @@ import GoogleProvider from "next-auth/providers/google"
 import DiscordProvider from "next-auth/providers/discord"
 import prisma from "@/lib/prisma"
 
-// Debug logs for environment presence (safe)
-if (typeof window === 'undefined') {
-    console.log('[AUTH_DEBUG] Checking environment variables...');
-    console.log('[AUTH_DEBUG] GOOGLE_ID:', !!process.env.GOOGLE_CLIENT_ID);
-    console.log('[AUTH_DEBUG] DISCORD_ID:', !!process.env.DISCORD_CLIENT_ID);
-    console.log('[AUTH_DEBUG] NEXTAUTH_SECRET:', !!process.env.NEXTAUTH_SECRET);
-    console.log('[AUTH_DEBUG] NEXTAUTH_URL:', !!process.env.NEXTAUTH_URL);
-}
-
 export const authOptions: NextAuthOptions = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     adapter: PrismaAdapter(prisma as any),
