@@ -21,8 +21,12 @@ export async function GET() {
 
         return NextResponse.json(messages.reverse());
     } catch (error) {
-        console.error("Error fetching messages:", error);
-        return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error("Error fetching messages:", errorMsg);
+        console.error("Full error:", error);
+        
+        // Return empty array on error instead of 500 to prevent cascading failures
+        return NextResponse.json([], { status: 200 });
     }
 }
 
@@ -56,7 +60,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json(message);
     } catch (error) {
-        console.error("Error sending message:", error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error("Error sending message:", errorMsg);
+        console.error("Full error:", error);
         return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
     }
 }
