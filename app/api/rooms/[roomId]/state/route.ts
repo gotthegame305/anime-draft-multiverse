@@ -59,13 +59,18 @@ export async function POST(
     { params }: { params: { roomId: string } }
 ) {
     const session = await getServerSession(authOptions);
-
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await req.json();
+    const { userId: bodyUserId } = body;
+    
+    // Allow both authenticated and anonymous users
+    let userId = session?.user?.id;
+    if (!userId && !bodyUserId) {
+        return NextResponse.json({ error: 'No user ID' }, { status: 401 });
     }
+    // Use provided userId (for anonymous) or session userId
+    userId = userId || bodyUserId;
 
     try {
-        const body = await req.json();
         const { action, data } = body;
 
         // Validate action
@@ -84,7 +89,7 @@ export async function POST(
         }
 
         // Only host can start game
-        if (action === 'start' && room.hostId === session.user.id) {
+        if (action === 'start' && room.hostId === userId) {
             const updatedRoom = await prisma.room.update({
                 where: { id: params.roomId },
                 data: {
@@ -145,9 +150,9 @@ export async function POST(
 
         if (action === 'leave') {
             await prisma.roomPlayer.deleteMany({
-                where: { roomId: params.roomId, userId: session.user.id }
+                where: { roomId: params.roomId, userId: userId }
             });
-            await triggerRoomEvent(params.roomId, 'player-left', { userId: session.user.id });
+            await triggerRoomEvent(params.roomId, 'player-left', { userId: userId });
             return NextResponse.json({ success: true });
         }
 

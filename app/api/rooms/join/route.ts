@@ -4,12 +4,15 @@ import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { triggerRoomEvent } from '@/lib/pusher';
 
+function generateAnonymousId(): string {
+    return `anon_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Allow both authenticated and anonymous users
+    const userId = session?.user?.id || generateAnonymousId();
 
     try {
         const { code, isSpectator } = await req.json();
@@ -33,7 +36,7 @@ export async function POST(req: Request) {
         }
 
         // Check if already in room
-        const existing = room.players.find((p: { userId: string }) => p.userId === session.user.id);
+        const existing = room.players.find((p: { userId: string }) => p.userId === userId);
         if (existing) {
             return NextResponse.json(room);
         }
@@ -44,11 +47,26 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Room is full' }, { status: 400 });
         }
 
+        // Create anonymous user if needed
+        if (!session?.user?.id) {
+            const existingUser = await prisma.user.findUnique({ where: { id: userId } }).catch(() => null);
+            
+            if (!existingUser) {
+                await prisma.user.create({
+                    data: {
+                        id: userId,
+                        name: `Guest ${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+                        email: null,
+                    }
+                });
+            }
+        }
+
         // Add player to room
         await prisma.roomPlayer.create({
             data: {
                 roomId: room.id,
-                userId: session.user.id,
+                userId: userId,
                 isSpectator: isSpectator || false,
             }
         });

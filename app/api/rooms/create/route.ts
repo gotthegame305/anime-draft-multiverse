@@ -12,12 +12,15 @@ function generateRoomCode(): string {
     return code;
 }
 
+function generateAnonymousId(): string {
+    return `anon_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export async function POST() {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Allow both authenticated and anonymous users
+    const userId = session?.user?.id || generateAnonymousId();
 
     try {
         // Generate unique room code
@@ -29,14 +32,32 @@ export async function POST() {
             existing = await prisma.room.findUnique({ where: { code } });
         }
 
+        // Create anonymous user if needed
+        let user = null;
+        if (!session?.user?.id) {
+            // Check if anonymous user exists
+            user = await prisma.user.findUnique({ where: { id: userId } }).catch(() => null);
+            
+            if (!user) {
+                // Create anonymous user
+                user = await prisma.user.create({
+                    data: {
+                        id: userId,
+                        name: `Guest ${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+                        email: null,
+                    }
+                });
+            }
+        }
+
         // Create room
         const room = await prisma.room.create({
             data: {
                 code,
-                hostId: session.user.id,
+                hostId: userId,
                 players: {
                     create: {
-                        userId: session.user.id,
+                        userId: userId,
                         isSpectator: false,
                     }
                 }
