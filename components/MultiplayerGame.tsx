@@ -154,10 +154,14 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 const res = await fetch(`/api/rooms/${roomId}/state`);
                 const roomData = await res.json();
 
+                console.log('[GAME INIT] Room data:', roomData);
+
                 if (roomData.gameState) {
+                    console.log('[GAME INIT] Loading existing game state');
                     setGameState(roomData.gameState);
                     setLoading(false);
                 } else if (roomData.hostId === userId) {
+                    console.log('[GAME INIT] Initializing game as host');
                     const initialState: GameState = {
                         currentTurn: 0,
                         round: 1,
@@ -173,14 +177,18 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         initialState.skipsRemaining[p.userId] = INITIAL_SKIPS;
                     });
 
+                    console.log('[GAME INIT] Initial state:', initialState);
+
                     setGameState(initialState);
                     setLoading(false);
                     syncState(initialState);
                 } else {
+                    console.log('[GAME INIT] Waiting for host to initialize');
                     const poll = setInterval(async () => {
                         const r = await fetch(`/api/rooms/${roomId}/state`);
                         const d = await r.json();
                         if (d.gameState) {
+                            console.log('[GAME INIT] Game state loaded from host');
                             setGameState(d.gameState);
                             setLoading(false);
                             clearInterval(poll);
@@ -189,7 +197,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     return () => clearInterval(poll);
                 }
             } catch (error) {
-                console.error('Failed to initialize game state:', error);
+                console.error('[GAME INIT] Failed to initialize:', error);
             }
         }
 
@@ -197,6 +205,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
         const channel = subscribeToRoom(roomId);
         channel?.bind('state-updated', (data: Partial<GameState>) => {
+            console.log("[GAME DEBUG] Pusher: state-updated", data);
             setGameState(prev => {
                 if (!prev) return data as GameState;
                 return {
@@ -263,10 +272,17 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     };
 
     const placeCharacter = (slotIndex: number) => {
-        if (!gameState || !isMyTurn || !gameState.currentDraw) return;
+        if (!gameState || !isMyTurn || !gameState.currentDraw) {
+            console.warn('[PLACE CHAR] Rejected - gameState:', !!gameState, 'isMyTurn:', isMyTurn, 'hasDraw:', !!gameState?.currentDraw);
+            return;
+        }
+
+        console.log('[PLACE CHAR] Placing character at slot:', slotIndex, 'char:', gameState.currentDraw.name);
 
         const newTeams = { ...gameState.playerTeams };
         const myKey = Object.keys(newTeams).find(k => k.toLowerCase().trim() === normUserId) || userId;
+
+        console.log('[PLACE CHAR] myKey:', myKey, 'normUserId:', normUserId, 'userId:', userId);
 
         if (!newTeams[myKey]) {
             newTeams[myKey] = [null, null, null, null, null];
@@ -291,6 +307,8 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             playerTeams: newTeams,
             status: nextRound > 5 ? 'FINISHED' : 'DRAFTING',
         };
+
+        console.log('[PLACE CHAR] New state:', { round: newState.round, turn: newState.currentTurn, status: newState.status });
 
         setGameState(newState);
         syncState(newState);
@@ -440,14 +458,22 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                 <div className="grid grid-cols-5 gap-2">
                                     {ROLES.map((role, slotIdx) => {
                                         const char = team[slotIdx];
+                                        const canPlace = isMyTurn && gameState.currentDraw && !char;
+                                        
                                         return (
                                             <div
                                                 key={slotIdx}
-                                                onClick={() => isMyTurn && gameState.currentDraw && placeCharacter(slotIdx)}
-                                                className={`relative h-32 rounded-lg border-2 overflow-hidden transition-all ${
+                                                onClick={() => {
+                                                    if (canPlace) {
+                                                        placeCharacter(slotIdx);
+                                                    }
+                                                }}
+                                                className={`relative h-32 rounded-lg border-2 overflow-hidden transition-all cursor-pointer ${
                                                     char ? 'border-blue-500' : 'border-dashed border-slate-600'
-                                                } ${isMyTurn && gameState.currentDraw && !char ? 'cursor-pointer hover:border-yellow-400 hover:shadow-lg' : ''}`}
+                                                } ${canPlace ? 'hover:border-yellow-400 hover:shadow-lg hover:shadow-yellow-400/50' : ''}`}
                                                 title={char?.name || role}
+                                                role="button"
+                                                tabIndex={canPlace ? 0 : -1}
                                             >
                                                 {char ? (
                                                     <>
