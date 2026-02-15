@@ -32,6 +32,11 @@ export interface CharacterItem {
     };
 }
 
+interface TeamData {
+    user: (CharacterItem | null)[];
+    cpu: (CharacterItem | null)[];
+}
+
 const ROLES_ORDER = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
 
 export async function getCharacters(limit = 500) {
@@ -48,10 +53,6 @@ export async function getCharacters(limit = 500) {
 
             // Use stored AI ratings if available, otherwise random seed
             const aiStats = char.roleRatings as RoleStats | null;
-
-            if (char.name.includes("Goku") || char.name.includes("Luffy")) {
-                console.log(`[DEBUG] ${char.name} RoleRatings:`, aiStats);
-            }
 
             const seed = char.id + char.name.length;
             const r = (n: number) => ((seed + n) % 5) + 1;
@@ -73,7 +74,9 @@ export async function getCharacters(limit = 500) {
             };
         });
     } catch (error) {
-        console.error('Failed to fetch characters:', error)
+        if (process.env.NODE_ENV === 'development') {
+            console.error('Failed to fetch characters:', error);
+        }
         return []
     }
 }
@@ -139,16 +142,18 @@ export async function submitMatch(userId: string, userTeam: (CharacterItem | nul
         }
 
         // Only create match if we have data
+        const teamData: TeamData = { user: userTeam, cpu: cpuTeam };
         await prisma.match.create({
             data: {
                 winnerId: isWin ? (userId !== 'user-123' ? userId : "Anonymous") : 'CPU',
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                teamDrafted: { user: userTeam, cpu: cpuTeam } as any,
+                teamDrafted: teamData as unknown,
             }
         });
 
     } catch (e) {
-        console.error("Database error in submitMatch:", e);
+        if (process.env.NODE_ENV === 'development') {
+            console.error("Database error in submitMatch:", e);
+        }
         // We continue to return result even if DB fails
     }
 
@@ -173,7 +178,9 @@ export async function getLeaderboard() {
         });
         return topUsers;
     } catch (error) {
-        console.error('Failed to fetch leaderboard:', error);
+        if (process.env.NODE_ENV === 'development') {
+            console.error('Failed to fetch leaderboard:', error);
+        }
         return [];
     }
 }
@@ -190,6 +197,8 @@ export async function updateUserStats(userId: string, outcome: 'win' | 'loss') {
         });
         revalidatePath('/');
     } catch (e) {
-        console.error("Failed to update user stats:", e);
+        if (process.env.NODE_ENV === 'development') {
+            console.error("Failed to update user stats:", e);
+        }
     }
 }

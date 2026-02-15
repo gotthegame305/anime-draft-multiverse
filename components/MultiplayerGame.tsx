@@ -10,9 +10,15 @@ interface GameState {
     currentTurn: number; // Player index 0-3
     round: number; // 1-5
     playerTeams: { [userId: string]: (CharacterItem | null)[] };
+    skipsRemaining: { [userId: string]: number };
     currentDraw: CharacterItem | null;
     status: 'DRAFTING' | 'GRADING' | 'FINISHED';
-    // characterPool is removed from shared state to save bandwidth/DB limits
+    results?: {
+        winnerId: string;
+        scores: { [userId: string]: number };
+        logs: string[];
+    };
+    hostId?: string;
 }
 
 const ROLES = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'];
@@ -38,16 +44,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const isSpectator = sortedPlayers.find(p => p.userId.toLowerCase().trim() === normUserId)?.isSpectator ?? true;
     const isMyTurn = !isSpectator && gameState?.currentTurn === myPlayerIndex;
 
-    console.log("[LOBBY DEBUG] Turn Check:", {
-        roomId,
-        userId: normUserId,
-        foundIndex: myPlayerIndex,
-        activeIds: activePlayers.map(p => p.userId.toLowerCase().trim()),
-        currentTurn: gameState?.currentTurn,
-        isMyTurn,
-        isSpectator
-    });
-
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
 
     const syncState = useCallback(async (state: GameState) => {
@@ -61,31 +57,53 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const calculateWinner = useCallback(async (finalState: GameState) => {
         // Calculate scores for each player
         const scores: { [userId: string]: number } = {};
+        const logs: string[] = [];
 
         Object.entries(finalState.playerTeams).forEach(([playerId, team]) => {
             let score = 0;
+            const playerName = activePlayers.find(p => p.userId === playerId)?.userId || playerId;
+            logs.push(`--- ${playerName}'s Squad Evaluation ---`);
+
             team.forEach((char, idx) => {
                 if (!char) return;
                 const roleKey = ROLE_KEYS[idx] as keyof typeof char.stats.roleStats;
                 const roleRating = (char.stats.roleStats[roleKey] as number) || 1;
                 const favorites = Number(char.stats.favorites) || 100;
                 const base = Math.log(favorites);
-                score += base + (roleRating * 3);
+                const roleBonus = roleRating * 3;
+                const total = base + roleBonus;
+
+                score += total;
+                logs.push(`${ROLES[idx]}: ${char.name} | Base ${base.toFixed(1)} + ${roleRating}⭐ bonus = ${total.toFixed(1)}`);
             });
             scores[playerId] = score;
+            logs.push(`Total Score: ${score.toFixed(1)}`);
         });
 
         // Find winner
-        const winnerId = Object.entries(scores).reduce((a, b) =>
+        const winnerEntry = Object.entries(scores).reduce((a, b) =>
             scores[a[0]] > scores[b[0]] ? a : b
-        )[0];
+        );
+        const winnerId = winnerEntry[0];
+
+        const newState: GameState = {
+            ...finalState,
+            status: 'FINISHED',
+            results: {
+                winnerId,
+                scores,
+                logs
+            }
+        };
+
+        setGameState(newState);
 
         await fetch(`/api/rooms/${roomId}/state`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'end', data: { winnerId, scores } })
+            body: JSON.stringify({ action: 'end', data: newState })
         });
-    }, [roomId]);
+    }, [roomId, activePlayers]);
 
     useEffect(() => {
         async function init() {
@@ -106,12 +124,15 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         currentTurn: 0,
                         round: 1,
                         playerTeams: {},
+                        skipsRemaining: {},
                         currentDraw: null,
                         status: 'DRAFTING',
+                        hostId: userId
                     };
 
                     activePlayers.forEach(p => {
                         initialState.playerTeams[p.userId] = [null, null, null, null, null];
+                        initialState.skipsRemaining[p.userId] = 1; // 1 skip per player
                     });
 
                     setGameState(initialState);

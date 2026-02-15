@@ -26,9 +26,12 @@ model User {
   losses        Int       @default(0)
   
   // Relations
+  hostedRooms   Room[]    @relation("RoomHost")
   matchesWon    Match[]   @relation("UserMatchesWon")
   messages      ChatMessage[]
   roomPlayers   RoomPlayer[]
+  
+  @@index([email])
 }
 
 model Account {
@@ -48,6 +51,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -56,6 +60,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -76,16 +82,15 @@ model Character {
 }
 
 model Match {
-  id          String   @id @default(uuid()) // ID type not specified, UUID is standard for matches
+  id          String   @id @default(uuid())
   playedAt    DateTime @default(now())
   
   winnerId    String
   winner      User     @relation("UserMatchesWon", fields: [winnerId], references: [id])
-  
-  // "teamDrafted (JSON object storing the 5 characters the user picked)"
-  // Note: match implies 2 players usually, but prompt only mentions "winner" and "teamDrafted". 
-  // Assuming strict adherence to prompt:
   teamDrafted Json
+  
+  @@index([winnerId])
+  @@index([playedAt])
 }
 
 model ChatMessage {
@@ -93,21 +98,27 @@ model ChatMessage {
   content   String
   
   senderId  String
-  sender    User     @relation(fields: [senderId], references: [id])
-  
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  
+  @@index([senderId])
+  @@index([createdAt])
 }
 
 model Room {
   id          String      @id @default(cuid())
-  code        String      @unique // 6-character join code
+  code        String      @unique
   hostId      String
+  host        User        @relation("RoomHost", fields: [hostId], references: [id], onDelete: Cascade)
   status      RoomStatus  @default(WAITING)
   maxPlayers  Int         @default(4)
   players     RoomPlayer[]
   createdAt   DateTime    @default(now())
   startedAt   DateTime?
-  gameState   Json?       // Current game state
+  gameState   Json?
+  
+  @@index([hostId])
+  @@index([code])
 }
 
 model RoomPlayer {
@@ -117,10 +128,12 @@ model RoomPlayer {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   isSpectator Boolean  @default(false)
-  team        Json?    // Their drafted team
+  team        Json?
   joinedAt    DateTime @default(now())
   
   @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
 }
 
 enum RoomStatus {

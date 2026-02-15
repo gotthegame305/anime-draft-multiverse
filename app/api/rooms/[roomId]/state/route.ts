@@ -12,10 +12,7 @@ export async function GET(
     { params }: { params: { roomId: string } }
 ) {
     try {
-        console.log(`[DEBUG] Fetching state for room: ${params.roomId}`);
-
         if (!params.roomId) {
-            console.error('[DEBUG] Room ID missing from params');
             return NextResponse.json({ error: 'Room ID required' }, { status: 400 });
         }
 
@@ -40,18 +37,15 @@ export async function GET(
         });
 
         if (!room) {
-            console.warn(`[DEBUG] Room not found: ${params.roomId}`);
             return NextResponse.json({ error: 'Room not found' }, { status: 404 });
         }
 
-        console.log(`[DEBUG] Room found: ${room.code}, Status: ${room.status}, Players: ${room.players.length}`);
         // Return the room with the players
         return NextResponse.json({
             ...room,
             gameState: room.gameState && Object.keys(room.gameState as object).length > 0 ? room.gameState : null
         });
     } catch (error: unknown) {
-        console.error('[DEBUG] FATAL ERROR fetching room state:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return NextResponse.json({
             error: 'Failed to fetch room',
@@ -74,9 +68,10 @@ export async function POST(
         const body = await req.json();
         const { action, data } = body;
 
-        console.log(`[DEBUG] Room Action: ${action} for room: ${params.roomId}`);
-        if (data) {
-            console.log(`[DEBUG] Data keys: ${Object.keys(data).join(', ')}`);
+        // Validate action
+        const validActions = ['start', 'updateState', 'end', 'leave'] as const;
+        if (!validActions.includes(action)) {
+            return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
 
         const room = await prisma.room.findUnique({
@@ -85,13 +80,11 @@ export async function POST(
         });
 
         if (!room) {
-            console.warn(`[DEBUG] Room not found: ${params.roomId}`);
             return NextResponse.json({ error: 'Room not found' }, { status: 404 });
         }
 
         // Only host can start game
         if (action === 'start' && room.hostId === session.user.id) {
-            console.log(`[DEBUG] Starting game - Wiping old gameState`);
             const updatedRoom = await prisma.room.update({
                 where: { id: params.roomId },
                 data: {
@@ -107,7 +100,6 @@ export async function POST(
 
         // Update game state
         if (action === 'updateState') {
-            console.log(`[DEBUG] Updating state - Payload size estimation: ${JSON.stringify(data).length} chars`);
             const updatedRoom = await prisma.room.update({
                 where: { id: params.roomId },
                 data: { gameState: data }
@@ -120,11 +112,34 @@ export async function POST(
 
         // Return existing end/leave logic
         if (action === 'end') {
+            const finalState = data;
+            const winnerId = finalState.results?.winnerId;
+
+            // Update stats for everyone in the room
+            const roomPlayers = await prisma.roomPlayer.findMany({
+                where: { roomId: params.roomId, isSpectator: false }
+            });
+
+            for (const p of roomPlayers) {
+                const isWinner = p.userId === winnerId;
+                await prisma.user.update({
+                    where: { id: p.userId },
+                    data: {
+                        wins: isWinner ? { increment: 1 } : undefined,
+                        losses: !isWinner ? { increment: 1 } : undefined
+                    }
+                });
+            }
+
             const updatedRoom = await prisma.room.update({
                 where: { id: params.roomId },
-                data: { status: 'FINISHED' }
+                data: {
+                    status: 'FINISHED',
+                    gameState: finalState // Store final results in DB
+                }
             });
-            await triggerRoomEvent(params.roomId, 'game-ended', data);
+
+            await triggerRoomEvent(params.roomId, 'game-ended', finalState);
             return NextResponse.json(updatedRoom);
         }
 
@@ -138,8 +153,6 @@ export async function POST(
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     } catch (error: unknown) {
-        console.error('[DEBUG] POST Error updating room state:', error);
-
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const errorCode = (error as { code?: string }).code;
 
