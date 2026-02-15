@@ -28,7 +28,6 @@ export default function NavBar() {
                     <div className="hidden md:flex items-center space-x-8">
                         <NavLink href="/" active={isActive("/")}>Play Game</NavLink>
                         <NavLink href="/leaderboard" active={isActive("/leaderboard")}>Leaderboard</NavLink>
-                        <NavLink href="/chat" active={isActive("/chat")}>Chat</NavLink>
                     </div>
 
                     {/* User Area */}

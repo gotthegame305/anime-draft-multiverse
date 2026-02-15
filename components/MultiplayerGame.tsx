@@ -6,12 +6,6 @@ import { useRouter } from 'next/navigation';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters, CharacterItem } from '@/app/actions';
 
-interface RoomChatMessage {
-    user: string;
-    text: string;
-    timestamp: string;
-}
-
 interface GameState {
     currentTurn: number;
     round: number;
@@ -20,7 +14,6 @@ interface GameState {
     currentDraw: CharacterItem | null;
     status: 'SETUP' | 'DRAFTING' | 'GRADING' | 'FINISHED';
     selectedUniverses: string[];
-    chatMessages: RoomChatMessage[];
     results?: {
         winnerId: string;
         scores: { [userId: string]: number };
@@ -44,9 +37,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [loading, setLoading] = useState(true);
     const [isMuted, setIsMuted] = useState(false);
-    const [chatOpen, setChatOpen] = useState(true);
-    const [chatInput, setChatInput] = useState('');
-
     // IMPORTANT: Don't sort! Use the same order as the server for currentTurn to work correctly!
     // The server's currentTurn index corresponds to the original players array order
     const activePlayers = players.filter(p => !p.isSpectator);
@@ -214,9 +204,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     const hydratedState: GameState = {
                         ...roomData.gameState,
                         status: roomData.gameState.status || 'SETUP',
-                        selectedUniverses: roomData.gameState.selectedUniverses || universes,
-                        chatMessages: roomData.gameState.chatMessages || [],
-                    };
+                        selectedUniverses: roomData.gameState.selectedUniverses || universes,                    };
                     setGameState(hydratedState);
                     setLoading(false);
                 } else if (roomData.hostId === userId) {
@@ -229,7 +217,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         currentDraw: null,
                         status: 'SETUP',
                         selectedUniverses: universes,
-                        chatMessages: [],
                         hostId: userId
                     };
 
@@ -253,9 +240,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                             const hydratedState: GameState = {
                                 ...d.gameState,
                                 status: d.gameState.status || 'SETUP',
-                                selectedUniverses: d.gameState.selectedUniverses || universes,
-                                chatMessages: d.gameState.chatMessages || [],
-                            };
+                                selectedUniverses: d.gameState.selectedUniverses || universes,                            };
                             setGameState(hydratedState);
                             setLoading(false);
                             clearInterval(poll);
@@ -281,17 +266,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 } as GameState;
             });
             setLoading(false);
-        });
-
-        channel?.bind('chat-message', (message: RoomChatMessage) => {
-            setGameState(prev => {
-                if (!prev) return prev;
-                const nextMessages = [...(prev.chatMessages || []), message].slice(-200);
-                return {
-                    ...prev,
-                    chatMessages: nextMessages
-                };
-            });
         });
 
         return () => {
@@ -454,28 +428,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         syncState(newState);
     };
 
-    const addChatMessage = async () => {
-        const text = chatInput.trim();
-        if (!text) return;
-
-        setChatInput('');
-        try {
-            await fetch(`/api/rooms/${roomId}/state`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'chatMessage',
-                    data: { text },
-                    userId
-                })
-            });
-        } catch (error) {
-            if (process.env.NODE_ENV === 'development') {
-                console.error('[CHAT] Failed to send message:', error);
-            }
-        }
-    };
-
     if (loading || !gameState) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -619,7 +571,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex gap-4 p-4">
             {/* Main Game Area */}
-            <div className={`flex-1 overflow-y-auto ${chatOpen ? 'md:pr-4' : ''}`}>
+            <div className="flex-1 overflow-y-auto">
                 {/* Header */}
                 <div className="mb-4 space-y-2">
                     {isSpectator && (
@@ -765,63 +717,8 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
             {/* REMOVED: Modal was blocking clicks on slots! Card shows in center area instead */}
 
-            {/* Chat Sidebar - Collapsible */}
-            <div className={`${chatOpen ? 'w-80' : 'w-12'} transition-all duration-300 hidden md:flex flex-col bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden`}>
-                <div className="p-2 border-b border-slate-700 flex justify-between items-center">
-                    <h3 className={`font-bold text-white text-sm ${chatOpen ? '' : 'hidden'}`}>💬 Chat</h3>
-                    <button
-                        onClick={() => setChatOpen(!chatOpen)}
-                        className="text-gray-400 hover:text-white p-2 rounded hover:bg-slate-700/50 transition-colors"
-                        title={chatOpen ? 'Minimize chat' : 'Open chat'}
-                    >
-                        {chatOpen ? (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                        ) : (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                        )}
-                    </button>
-                </div>
-
-                {chatOpen && (
-                    <>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                            {(gameState.chatMessages || []).length === 0 ? (
-                                <p className="text-gray-500 text-sm text-center">No messages yet...</p>
-                            ) : (
-                                (gameState.chatMessages || []).map((msg, idx) => (
-                                    <div key={idx} className="text-sm">
-                                        <p className="text-blue-400 font-semibold">{msg.user === userId ? 'You' : msg.user}</p>
-                                        <p className="text-gray-300">{msg.text}</p>
-                                        <p className="text-xs text-gray-600">{new Date(msg.timestamp).toLocaleTimeString()}</p>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-
-                        <div className="p-4 border-t border-slate-700 flex gap-2">
-                            <input
-                                type="text"
-                                value={chatInput}
-                                onChange={(e) => setChatInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && addChatMessage()}
-                                placeholder="Message..."
-                                className="flex-1 bg-slate-700 text-white rounded px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <button
-                                onClick={addChatMessage}
-                                className="bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 font-bold"
-                            >
-                                ▶
-                            </button>
-                        </div>
-                    </>
-                )}
-            </div>
         </div>
     );
 }
+
 

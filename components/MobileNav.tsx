@@ -10,9 +10,8 @@ export default function MobileNav() {
     return (
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-white/10 z-50 pb-safe">
             <div className="flex justify-around items-center h-16">
-                <MobileNavLink href="/" active={isActive("/")} icon="🎮" label="Game" />
-                <MobileNavLink href="/leaderboard" active={isActive("/leaderboard")} icon="🏆" label="Rank" />
-                <MobileNavLink href="/chat" active={isActive("/chat")} icon="💬" label="Chat" />
+                <MobileNavLink href="/" active={isActive("/")} icon="G" label="Game" />
+                <MobileNavLink href="/leaderboard" active={isActive("/leaderboard")} icon="R" label="Rank" />
             </div>
         </div>
     );

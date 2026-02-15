@@ -4,7 +4,6 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import NavBar from "@/components/NavBar";
 import MobileNav from "@/components/MobileNav";
-import SidebarChatWrapper from "@/components/SidebarChatWrapper";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -37,7 +36,6 @@ export default function RootLayout({
           <div className="pb-16 md:pb-0"> {/* Padding for MobileNav */}
             {children}
           </div>
-          <SidebarChatWrapper />
           <MobileNav />
         </Providers>
       </body>

@@ -74,7 +74,7 @@ export async function POST(
         }
 
         // Validate action
-        const validActions = ['start', 'updateState', 'end', 'leave', 'chatMessage'] as const;
+        const validActions = ['start', 'updateState', 'end', 'leave'] as const;
         if (!action || !validActions.includes(action)) {
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
@@ -172,46 +172,6 @@ export async function POST(
             });
             await triggerRoomEvent(params.roomId, 'player-left', { userId: userId });
             return NextResponse.json({ success: true });
-        }
-
-        // Handle room-scoped chat message
-        if (action === 'chatMessage') {
-            const rawText = typeof data?.text === 'string' ? data.text : '';
-            const text = rawText.trim();
-            if (!text) {
-                return NextResponse.json({ error: 'Message text required' }, { status: 400 });
-            }
-
-            const inRoom = room.players.some((p) => p.userId === userId);
-            if (!inRoom) {
-                return NextResponse.json({ error: 'You are not in this room' }, { status: 403 });
-            }
-
-            const nowIso = new Date().toISOString();
-            const message = {
-                user: userId,
-                text,
-                timestamp: nowIso
-            };
-
-            const currentState = (room.gameState && typeof room.gameState === 'object')
-                ? JSON.parse(JSON.stringify(room.gameState))
-                : {};
-            const existingMessages = Array.isArray(currentState.chatMessages) ? currentState.chatMessages : [];
-            const nextMessages = [...existingMessages, message].slice(-200);
-
-            const updatedState = {
-                ...currentState,
-                chatMessages: nextMessages
-            };
-
-            await prisma.room.update({
-                where: { id: params.roomId },
-                data: { gameState: updatedState }
-            });
-
-            await triggerRoomEvent(params.roomId, 'chat-message', message);
-            return NextResponse.json({ success: true, message });
         }
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
