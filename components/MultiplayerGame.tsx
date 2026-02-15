@@ -437,13 +437,31 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                         DRAW CHARACTER
                                     </button>
                                 )}
-                                {gameState.currentDraw && gameState.skipsRemaining[userId] > 0 && (
-                                    <button
-                                        onClick={skipCard}
-                                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-xl"
-                                    >
-                                        SKIP ({gameState.skipsRemaining[userId]} left)
-                                    </button>
+                                {gameState.currentDraw && (
+                                    <>
+                                        {/* Show drawn card in header */}
+                                        <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg flex-1">
+                                            <div className="relative w-16 h-20 rounded overflow-hidden flex-shrink-0">
+                                                <Image
+                                                    src={gameState.currentDraw.imageUrl}
+                                                    alt={gameState.currentDraw.name}
+                                                    fill
+                                                    className="object-cover"
+                                                />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-yellow-400 font-bold text-sm truncate">{gameState.currentDraw.name}</p>
+                                                <p className="text-gray-400 text-xs">{gameState.currentDraw.animeUniverse}</p>
+                                                <p className="text-yellow-300 text-xs mt-1">👆 Click a slot to place!</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={skipCard}
+                                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-4 rounded-xl whitespace-nowrap"
+                                        >
+                                            SKIP ({gameState.skipsRemaining[userId]})
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         )}
@@ -513,26 +531,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 </div>
             </div>
 
-            {/* Current Draw (Modal) */}
-            {gameState.currentDraw && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 pointer-events-none md:pointer-events-auto">
-                    <div className="bg-slate-800 border-4 border-yellow-400 rounded-2xl p-6 max-w-sm w-full mx-4 pointer-events-auto shadow-2xl">
-                        <div className="relative w-full h-64 mb-4 rounded-xl overflow-hidden">
-                            <Image
-                                src={gameState.currentDraw.imageUrl}
-                                alt={gameState.currentDraw.name}
-                                fill
-                                className="object-cover"
-                            />
-                        </div>
-                        <h3 className="text-white text-2xl font-bold mb-2">{gameState.currentDraw.name}</h3>
-                        <p className="text-gray-400 mb-4">{gameState.currentDraw.animeUniverse}</p>
-                        {isMyTurn && (
-                            <p className="text-yellow-400 text-center font-semibold">Click a team slot to place this character!</p>
-                        )}
-                    </div>
-                </div>
-            )}
+            {/* REMOVED: Modal was blocking clicks on slots! Card shows in center area instead */}
 
             {/* Chat Sidebar */}
             <div className={`${chatOpen ? 'w-80' : 'w-16'} transition-all hidden md:flex flex-col bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden`}>
