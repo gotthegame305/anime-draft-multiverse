@@ -32,11 +32,6 @@ export interface CharacterItem {
     };
 }
 
-interface TeamData {
-    user: (CharacterItem | null)[];
-    cpu: (CharacterItem | null)[];
-}
-
 const ROLES_ORDER = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
 
 export async function getCharacters(limit = 500) {
@@ -142,11 +137,10 @@ export async function submitMatch(userId: string, userTeam: (CharacterItem | nul
         }
 
         // Only create match if we have data
-        const teamData: TeamData = { user: userTeam, cpu: cpuTeam };
         await prisma.match.create({
             data: {
                 winnerId: isWin ? (userId !== 'user-123' ? userId : "Anonymous") : 'CPU',
-                teamDrafted: teamData as unknown,
+                teamDrafted: JSON.parse(JSON.stringify({ user: userTeam, cpu: cpuTeam })),
             }
         });
 
