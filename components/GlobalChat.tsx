@@ -23,25 +23,51 @@ export default function GlobalChat() {
     const [loading, setLoading] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isAutoScroll, setIsAutoScroll] = useState(true);
+    const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pollDelayRef = useRef(3000);
 
-    const fetchMessages = async () => {
+    const POLL_MIN_MS = 3000;
+    const POLL_MAX_MS = 30000;
+
+    const fetchMessages = async (): Promise<boolean> => {
         try {
             const res = await fetch("/api/chat");
             if (res.ok) {
                 const data = await res.json();
                 setMessages(data);
-                setLoading(false);
+                return true;
             }
+            return false;
         } catch (error) {
             console.error("Failed to fetch messages", error);
+            return false;
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Polling
+    // Polling with exponential backoff when chat backend is unavailable
     useEffect(() => {
-        fetchMessages();
-        const interval = setInterval(fetchMessages, 3000);
-        return () => clearInterval(interval);
+        let cancelled = false;
+
+        const poll = async () => {
+            if (cancelled) return;
+            const ok = await fetchMessages();
+            if (ok) {
+                pollDelayRef.current = POLL_MIN_MS;
+            } else {
+                pollDelayRef.current = Math.min(pollDelayRef.current * 2, POLL_MAX_MS);
+            }
+
+            pollTimerRef.current = setTimeout(poll, pollDelayRef.current);
+        };
+
+        poll();
+
+        return () => {
+            cancelled = true;
+            if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        };
     }, []);
 
     // Auto-scroll

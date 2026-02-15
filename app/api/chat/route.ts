@@ -24,9 +24,11 @@ export async function GET() {
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.error("Error fetching messages:", errorMsg);
         console.error("Full error:", error);
-        
-        // Return empty array on error instead of 500 to prevent cascading failures
-        return NextResponse.json([], { status: 200 });
+
+        return NextResponse.json(
+            { error: "Chat backend unavailable", messages: [] },
+            { status: 503 }
+        );
     }
 }
 
