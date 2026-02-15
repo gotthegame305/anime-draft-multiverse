@@ -6,8 +6,14 @@ import { usePathname } from "next/navigation";
 export default function SidebarChatWrapper() {
     const pathname = usePathname();
 
-    // Hide sidebar on /chat page to avoid duplication
-    if (pathname === "/chat") return null;
+    // Hide sidebar where dedicated/in-page chat already exists
+    if (
+        pathname === "/chat" ||
+        pathname.startsWith("/game/") ||
+        pathname.startsWith("/room/")
+    ) {
+        return null;
+    }
 
     return (
         <div className="hidden lg:block fixed right-6 bottom-6 z-40 w-80 pointer-events-none">

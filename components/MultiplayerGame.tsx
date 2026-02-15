@@ -6,13 +6,21 @@ import { useRouter } from 'next/navigation';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters, CharacterItem } from '@/app/actions';
 
+interface RoomChatMessage {
+    user: string;
+    text: string;
+    timestamp: string;
+}
+
 interface GameState {
     currentTurn: number;
     round: number;
     playerTeams: { [userId: string]: (CharacterItem | null)[] };
     skipsRemaining: { [userId: string]: number };
     currentDraw: CharacterItem | null;
-    status: 'DRAFTING' | 'GRADING' | 'FINISHED';
+    status: 'SETUP' | 'DRAFTING' | 'GRADING' | 'FINISHED';
+    selectedUniverses: string[];
+    chatMessages: RoomChatMessage[];
     results?: {
         winnerId: string;
         scores: { [userId: string]: number };
@@ -25,6 +33,7 @@ const ROLES = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'];
 const ROLE_KEYS = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
 const INITIAL_SKIPS = 2;
 const IMPACT_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3';
+const MIN_POOL_SIZE = 10;
 
 export default function MultiplayerGame({ roomId, userId, players }: {
     roomId: string;
@@ -36,7 +45,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const [loading, setLoading] = useState(true);
     const [isMuted, setIsMuted] = useState(false);
     const [chatOpen, setChatOpen] = useState(true);
-    const [chatMessages, setChatMessages] = useState<Array<{ user: string; text: string; timestamp: string }>>([]);
     const [chatInput, setChatInput] = useState('');
 
     // IMPORTANT: Don't sort! Use the same order as the server for currentTurn to work correctly!
@@ -47,8 +55,10 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const myPlayerIndex = activePlayers.findIndex(p => p.userId.toLowerCase().trim() === normUserId);
     const isSpectator = players.find(p => p.userId.toLowerCase().trim() === normUserId)?.isSpectator ?? true;
     const isMyTurn = !isSpectator && gameState?.currentTurn === myPlayerIndex;
+    const isHost = gameState?.hostId === userId;
 
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
+    const [availableUniverses, setAvailableUniverses] = useState<string[]>([]);
     const [syncTimeout, setSyncTimeout] = useState<NodeJS.Timeout | null>(null);
 
     const playImpactSound = () => {
@@ -91,35 +101,77 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         setSyncTimeout(timeout);
     }, [roomId, userId, syncTimeout]);
 
-    const calculateWinner = useCallback(async (finalState: GameState) => {
+    const getNormalizedPlayerKey = useCallback((keys: string[], targetUserId: string) => {
+        const normTarget = targetUserId.toLowerCase().trim();
+        return keys.find(k => k.toLowerCase().trim() === normTarget) || targetUserId;
+    }, []);
+
+    const getRolePower = (char: CharacterItem | null, roleIndex: number) => {
+        if (!char) return { total: 0, base: 0, stars: 0 };
+        const roleKey = ROLE_KEYS[roleIndex];
+        const stars = Number(char.stats?.roleStats?.[roleKey]) || 1;
+        const base = Math.log(Number(char.stats?.favorites) || 100);
+        return { total: base + (stars * 3), base, stars };
+    };
+
+        const calculateWinner = useCallback(async (finalState: GameState) => {
         const scores: { [userId: string]: number } = {};
+        const totalPowerByPlayer: { [userId: string]: number } = {};
         const logs: string[] = [];
+        const playerIds = Object.keys(finalState.playerTeams);
 
-        Object.entries(finalState.playerTeams).forEach(([playerId, team]) => {
-            let score = 0;
-            const playerName = activePlayers.find(p => p.userId === playerId)?.userId || playerId;
-            logs.push(`--- ${playerName}'s Squad Evaluation ---`);
-
-            team.forEach((char, idx) => {
-                if (!char) return;
-                const roleKey = ROLE_KEYS[idx] as keyof typeof char.stats.roleStats;
-                const roleRating = (char.stats.roleStats[roleKey] as number) || 1;
-                const favorites = Number(char.stats.favorites) || 100;
-                const base = Math.log(favorites);
-                const roleBonus = roleRating * 3;
-                const total = base + roleBonus;
-
-                score += total;
-                logs.push(`${ROLES[idx]}: ${char.name} | Base ${base.toFixed(1)} + ${roleRating}⭐ bonus = ${total.toFixed(1)}`);
-            });
-            scores[playerId] = score;
-            logs.push(`Total Score: ${score.toFixed(1)}`);
+        playerIds.forEach((playerId) => {
+            scores[playerId] = 0;
+            totalPowerByPlayer[playerId] = 0;
         });
 
-        const winnerEntry = Object.entries(scores).reduce((a, b) =>
-            scores[a[0]] > scores[b[0]] ? a : b
-        );
-        const winnerId = winnerEntry[0];
+        for (let roleIndex = 0; roleIndex < ROLES.length; roleIndex++) {
+            const roleName = ROLES[roleIndex];
+            logs.push(`${roleName} ROUND:`);
+
+            const roleScores = playerIds.map((playerId) => {
+                const team = finalState.playerTeams[playerId] || [];
+                const char = team[roleIndex];
+                const { total, base, stars } = getRolePower(char || null, roleIndex);
+                totalPowerByPlayer[playerId] += total;
+                return { playerId, char, total, base, stars };
+            });
+
+            roleScores.forEach(({ playerId, char, total, base, stars }) => {
+                const playerName = activePlayers.find(p => p.userId === playerId)?.userId || playerId;
+                if (!char) {
+                    logs.push(`  - ${playerName}: EMPTY SLOT`);
+                    return;
+                }
+                logs.push(`  - ${playerName}: ${char.name} | Pwr ${base.toFixed(1)} + (${stars}*3) = ${total.toFixed(1)}`);
+            });
+
+            const topScore = Math.max(...roleScores.map(r => r.total));
+            const winners = roleScores.filter(r => r.total === topScore && r.total > 0);
+            winners.forEach((winner) => {
+                scores[winner.playerId] += 1;
+            });
+
+            if (winners.length > 0) {
+                const winnerNames = winners
+                    .map(w => activePlayers.find(p => p.userId === w.playerId)?.userId || w.playerId)
+                    .join(', ');
+                logs.push(`  -> Role Winner${winners.length > 1 ? 's' : ''}: ${winnerNames}`);
+            } else {
+                logs.push('  -> No winner for this role');
+            }
+        }
+
+        logs.push('FINAL ROLE SCOREBOARD:');
+        playerIds.forEach((playerId) => {
+            const playerName = activePlayers.find(p => p.userId === playerId)?.userId || playerId;
+            logs.push(`  ${playerName}: ${scores[playerId]} role points | Total power ${totalPowerByPlayer[playerId].toFixed(1)}`);
+        });
+
+        const winnerId = [...playerIds].sort((a, b) => {
+            if (scores[b] !== scores[a]) return scores[b] - scores[a];
+            return totalPowerByPlayer[b] - totalPowerByPlayer[a];
+        })[0];
 
         const newState: GameState = {
             ...finalState,
@@ -136,8 +188,8 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         await fetch(`/api/rooms/${roomId}/state`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                action: 'end', 
+            body: JSON.stringify({
+                action: 'end',
                 data: newState,
                 userId: userId
             })
@@ -148,6 +200,8 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         async function init() {
             const chars = await getCharacters(500);
             setCharacterPool(chars);
+            const universes = Array.from(new Set(chars.map(c => c.animeUniverse))).sort();
+            setAvailableUniverses(universes);
 
             try {
                 const res = await fetch(`/api/rooms/${roomId}/state`);
@@ -157,7 +211,13 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
                 if (roomData.gameState) {
                     console.log('[GAME INIT] Loading existing game state');
-                    setGameState(roomData.gameState);
+                    const hydratedState: GameState = {
+                        ...roomData.gameState,
+                        status: roomData.gameState.status || 'SETUP',
+                        selectedUniverses: roomData.gameState.selectedUniverses || universes,
+                        chatMessages: roomData.gameState.chatMessages || [],
+                    };
+                    setGameState(hydratedState);
                     setLoading(false);
                 } else if (roomData.hostId === userId) {
                     console.log('[GAME INIT] Initializing game as host');
@@ -167,7 +227,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         playerTeams: {},
                         skipsRemaining: {},
                         currentDraw: null,
-                        status: 'DRAFTING',
+                        status: 'SETUP',
+                        selectedUniverses: universes,
+                        chatMessages: [],
                         hostId: userId
                     };
 
@@ -188,7 +250,13 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         const d = await r.json();
                         if (d.gameState) {
                             console.log('[GAME INIT] Game state loaded from host');
-                            setGameState(d.gameState);
+                            const hydratedState: GameState = {
+                                ...d.gameState,
+                                status: d.gameState.status || 'SETUP',
+                                selectedUniverses: d.gameState.selectedUniverses || universes,
+                                chatMessages: d.gameState.chatMessages || [],
+                            };
+                            setGameState(hydratedState);
                             setLoading(false);
                             clearInterval(poll);
                         }
@@ -215,6 +283,17 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             setLoading(false);
         });
 
+        channel?.bind('chat-message', (message: RoomChatMessage) => {
+            setGameState(prev => {
+                if (!prev) return prev;
+                const nextMessages = [...(prev.chatMessages || []), message].slice(-200);
+                return {
+                    ...prev,
+                    chatMessages: nextMessages
+                };
+            });
+        });
+
         return () => {
             unsubscribeFromRoom(roomId);
         };
@@ -231,12 +310,13 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             players: activePlayers.map(p => p.userId)
         });
         
-        if (!gameState || !isMyTurn || gameState.currentDraw || characterPool.length === 0) {
+        if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || gameState.currentDraw || characterPool.length === 0) {
             console.warn('[DRAW] Blocked - conditions not met');
             return;
         }
 
         const available = characterPool.filter(c => {
+            if (!gameState.selectedUniverses.includes(c.animeUniverse)) return false;
             return !Object.values(gameState.playerTeams).some(team =>
                 team.some(slot => slot?.id === c.id)
             );
@@ -256,9 +336,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     };
 
     const skipCard = () => {
-        if (!gameState || !isMyTurn || !gameState.currentDraw) return;
+        if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || !gameState.currentDraw) return;
         
-        const myKey = Object.keys(gameState.playerTeams).find(k => k.toLowerCase().trim() === normUserId) || userId;
+        const myKey = getNormalizedPlayerKey(Object.keys(gameState.playerTeams), userId);
         const skipsLeft = gameState.skipsRemaining[myKey] || 0;
 
         if (skipsLeft <= 0) return;
@@ -288,7 +368,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     };
 
     const placeCharacter = (slotIndex: number) => {
-        if (!gameState || !isMyTurn || !gameState.currentDraw) {
+        if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || !gameState.currentDraw) {
             console.warn('[PLACE CHAR] Rejected - gameState:', !!gameState, 'isMyTurn:', isMyTurn, 'hasDraw:', !!gameState?.currentDraw);
             return;
         }
@@ -296,7 +376,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         console.log('[PLACE CHAR] Placing character at slot:', slotIndex, 'char:', gameState.currentDraw.name);
 
         const newTeams = { ...gameState.playerTeams };
-        const myKey = Object.keys(newTeams).find(k => k.toLowerCase().trim() === normUserId) || userId;
+        const myKey = getNormalizedPlayerKey(Object.keys(newTeams), userId);
 
         console.log('[PLACE CHAR] myKey:', myKey, 'normUserId:', normUserId, 'userId:', userId);
 
@@ -334,21 +414,144 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         }
     };
 
-    const addChatMessage = () => {
-        if (!chatInput.trim()) return;
-        const newMessage = {
-            user: userId,
-            text: chatInput,
-            timestamp: new Date().toLocaleTimeString()
+    const toggleUniverse = (universe: string) => {
+        if (!gameState || !isHost || gameState.status !== 'SETUP') return;
+        const selected = gameState.selectedUniverses.includes(universe)
+            ? gameState.selectedUniverses.filter(u => u !== universe)
+            : [...gameState.selectedUniverses, universe];
+        const newState: GameState = { ...gameState, selectedUniverses: selected };
+        setGameState(newState);
+        syncState(newState);
+    };
+
+    const selectAllUniverses = () => {
+        if (!gameState || !isHost || gameState.status !== 'SETUP') return;
+        const newState: GameState = { ...gameState, selectedUniverses: availableUniverses };
+        setGameState(newState);
+        syncState(newState);
+    };
+
+    const deselectAllUniverses = () => {
+        if (!gameState || !isHost || gameState.status !== 'SETUP') return;
+        const newState: GameState = { ...gameState, selectedUniverses: [] };
+        setGameState(newState);
+        syncState(newState);
+    };
+
+    const startDraft = () => {
+        if (!gameState || !isHost || gameState.status !== 'SETUP') return;
+        const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
+        if (gameState.selectedUniverses.length === 0) return;
+        if (filteredCount < MIN_POOL_SIZE) return;
+        const newState: GameState = {
+            ...gameState,
+            status: 'DRAFTING',
+            currentTurn: 0,
+            round: 1,
+            currentDraw: null,
         };
-        setChatMessages(prev => [...prev, newMessage]);
+        setGameState(newState);
+        syncState(newState);
+    };
+
+    const addChatMessage = async () => {
+        const text = chatInput.trim();
+        if (!text) return;
+
         setChatInput('');
+        try {
+            await fetch(`/api/rooms/${roomId}/state`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'chatMessage',
+                    data: { text },
+                    userId
+                })
+            });
+        } catch (error) {
+            if (process.env.NODE_ENV === 'development') {
+                console.error('[CHAT] Failed to send message:', error);
+            }
+        }
     };
 
     if (loading || !gameState) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
                 <div className="text-white text-2xl">Starting game...</div>
+            </div>
+        );
+    }
+
+    if (gameState.status === 'SETUP') {
+        const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
+        const canStartDraft = gameState.selectedUniverses.length > 0 && filteredCount >= MIN_POOL_SIZE;
+
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+                <div className="w-full max-w-5xl bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl p-8">
+                    <h1 className="text-4xl font-black text-white text-center mb-2">SETUP YOUR DECK</h1>
+                    <p className="text-slate-400 text-center mb-8">Host chooses universes for this multiplayer draft pool.</p>
+
+                    <div className="flex justify-center gap-4 mb-6">
+                        <button
+                            onClick={selectAllUniverses}
+                            disabled={!isHost}
+                            className="text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-blue-300 px-4 py-2 rounded"
+                        >
+                            Select All
+                        </button>
+                        <button
+                            onClick={deselectAllUniverses}
+                            disabled={!isHost}
+                            className="text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-red-300 px-4 py-2 rounded"
+                        >
+                            Deselect All
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10 max-h-[420px] overflow-y-auto pr-2">
+                        {availableUniverses.map(universe => {
+                            const selected = gameState.selectedUniverses.includes(universe);
+                            return (
+                                <button
+                                    key={universe}
+                                    onClick={() => toggleUniverse(universe)}
+                                    disabled={!isHost}
+                                    className={`text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between ${selected ? 'bg-blue-900/30 border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-slate-950 border-slate-800 opacity-70'} ${isHost ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                                >
+                                    <span className="font-bold text-white truncate">{universe}</span>
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selected ? 'bg-blue-500 border-blue-500' : 'border-slate-600'}`}>
+                                        {selected && <span className="text-white text-xs">+</span>}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex justify-center flex-col items-center gap-2">
+                        {isHost ? (
+                            <button
+                                onClick={startDraft}
+                                disabled={!canStartDraft}
+                                className="bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed text-black font-black text-2xl py-4 px-12 rounded-full shadow-[0_0_30px_rgba(250,204,21,0.5)]"
+                            >
+                                ENTER THE DRAFT
+                            </button>
+                        ) : (
+                            <div className="text-slate-300 text-lg">Waiting for host to lock deck and start...</div>
+                        )}
+                        <span className="text-slate-500 text-sm">
+                            {gameState.selectedUniverses.length} Universes Selected ({filteredCount} Characters)
+                        </span>
+                        {!canStartDraft && isHost && (
+                            <span className="text-red-300 text-sm">
+                                Select at least 1 universe and keep at least {MIN_POOL_SIZE} characters in pool.
+                            </span>
+                        )}
+                    </div>
+                </div>
             </div>
         );
     }
@@ -372,12 +575,17 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                     <h3 className={`text-xl font-bold mb-4 ${isWinner ? 'text-yellow-400' : 'text-white'}`}>
                                         {playerName} {isWinner && '👑'}
                                     </h3>
-                                    <p className="text-2xl font-bold mb-4 text-center text-orange-400">{score.toFixed(1)}</p>
+                                    <p className="text-2xl font-bold mb-4 text-center text-orange-400">{score} role points</p>
                                     <div className="grid grid-cols-5 gap-2 mb-4">
                                         {team.map((char, idx) => (
                                             <div key={idx} className="relative h-24 rounded-lg overflow-hidden border border-slate-600">
                                                 {char ? (
-                                                    <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
+                                                    <>
+                                                        <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
+                                                        <div className="absolute top-1 right-1 bg-black/50 rounded px-1 text-[10px] text-yellow-300">
+                                                            {'*'.repeat(Number(char.stats?.roleStats?.[ROLE_KEYS[idx]]) || 1)}
+                                                        </div>
+                                                    </>
                                                 ) : (
                                                     <div className="w-full h-full bg-slate-600/30" />
                                                 )}
@@ -388,6 +596,14 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                             );
                         })}
                     </div>
+
+                    {gameState.results?.logs && (
+                        <div className="bg-black/40 border border-slate-700 rounded-xl p-4 mb-8 max-h-72 overflow-y-auto font-mono text-sm space-y-1">
+                            {gameState.results.logs.map((log, i) => (
+                                <div key={`${log}-${i}`} className="text-slate-200">{log}</div>
+                            ))}
+                        </div>
+                    )}
 
                     <button
                         onClick={() => router.push('/lobby')}
@@ -459,7 +675,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                             onClick={skipCard}
                                             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-4 rounded-xl whitespace-nowrap"
                                         >
-                                            SKIP ({gameState.skipsRemaining[userId]})
+                                            SKIP ({gameState.skipsRemaining[getNormalizedPlayerKey(Object.keys(gameState.skipsRemaining), userId)] ?? 0})
                                         </button>
                                     </>
                                 )}
@@ -471,7 +687,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 {/* Player Teams Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                     {activePlayers.map((player, playerIdx) => {
-                        const myKey = Object.keys(gameState.playerTeams).find(k => k.toLowerCase().trim() === player.userId.toLowerCase().trim()) || player.userId;
+                        const myKey = getNormalizedPlayerKey(Object.keys(gameState.playerTeams), player.userId);
                         const team = gameState.playerTeams[myKey] || [];
                         const isActive = gameState.currentTurn === playerIdx;
                         const playerSkips = gameState.skipsRemaining[myKey] || INITIAL_SKIPS;
@@ -520,7 +736,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                                     {/* Star Rating */}
                                                     {char && roleRating && (
                                                         <div className="text-yellow-400 text-xs mt-0.5 bg-black/50 px-1 rounded">
-                                                            {'⭐'.repeat(roleRating)}
+                                                            {'*'.repeat(roleRating)}
                                                         </div>
                                                     )}
                                                 </div>
@@ -573,14 +789,14 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 {chatOpen && (
                     <>
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                            {chatMessages.length === 0 ? (
+                            {(gameState.chatMessages || []).length === 0 ? (
                                 <p className="text-gray-500 text-sm text-center">No messages yet...</p>
                             ) : (
-                                chatMessages.map((msg, idx) => (
+                                (gameState.chatMessages || []).map((msg, idx) => (
                                     <div key={idx} className="text-sm">
                                         <p className="text-blue-400 font-semibold">{msg.user === userId ? 'You' : msg.user}</p>
                                         <p className="text-gray-300">{msg.text}</p>
-                                        <p className="text-xs text-gray-600">{msg.timestamp}</p>
+                                        <p className="text-xs text-gray-600">{new Date(msg.timestamp).toLocaleTimeString()}</p>
                                     </div>
                                 ))
                             )}
@@ -608,3 +824,4 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         </div>
     );
 }
+
