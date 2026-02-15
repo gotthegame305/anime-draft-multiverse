@@ -494,6 +494,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                         const char = team[slotIdx];
                                         const canPlace = isMyTurn && gameState.currentDraw && !char;
                                         
+                                        const roleKey = ROLE_KEYS[slotIdx];
+                                        const roleRating = char?.stats?.roleStats?.[roleKey] as number | undefined;
+                                        
                                         return (
                                             <div
                                                 key={slotIdx}
@@ -509,16 +512,29 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                                 role="button"
                                                 tabIndex={canPlace ? 0 : -1}
                                             >
+                                                {/* Role Label at top */}
+                                                <div className="absolute top-1 right-1 z-10 flex flex-col items-end">
+                                                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider px-1 bg-black/50 rounded">
+                                                        {role.split(' ')[0]}
+                                                    </span>
+                                                    {/* Star Rating */}
+                                                    {char && roleRating && (
+                                                        <div className="text-yellow-400 text-xs mt-0.5 bg-black/50 px-1 rounded">
+                                                            {'⭐'.repeat(roleRating)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
                                                 {char ? (
                                                     <>
                                                         <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
-                                                        <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-all flex items-end p-1">
-                                                            <p className="text-xs text-white font-bold truncate w-full">{char.name}</p>
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-1">
+                                                            <p className="text-xs text-white font-bold truncate w-full drop-shadow-lg">{char.name}</p>
                                                         </div>
                                                     </>
                                                 ) : (
                                                     <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-700 to-slate-800">
-                                                        <p className="text-gray-400 text-xs text-center font-semibold">{role}</p>
+                                                        <p className="text-gray-400 text-xs text-center font-semibold px-1">{role}</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -533,15 +549,24 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
             {/* REMOVED: Modal was blocking clicks on slots! Card shows in center area instead */}
 
-            {/* Chat Sidebar */}
-            <div className={`${chatOpen ? 'w-80' : 'w-16'} transition-all hidden md:flex flex-col bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden`}>
-                <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-                    <h3 className={`font-bold text-white ${chatOpen ? '' : 'hidden'}`}>💬 Chat</h3>
+            {/* Chat Sidebar - Collapsible */}
+            <div className={`${chatOpen ? 'w-80' : 'w-12'} transition-all duration-300 hidden md:flex flex-col bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden`}>
+                <div className="p-2 border-b border-slate-700 flex justify-between items-center">
+                    <h3 className={`font-bold text-white text-sm ${chatOpen ? '' : 'hidden'}`}>💬 Chat</h3>
                     <button
                         onClick={() => setChatOpen(!chatOpen)}
-                        className="text-gray-400 hover:text-white"
+                        className="text-gray-400 hover:text-white p-2 rounded hover:bg-slate-700/50 transition-colors"
+                        title={chatOpen ? 'Minimize chat' : 'Open chat'}
                     >
-                        {chatOpen ? '◀' : '▶'}
+                        {chatOpen ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                        ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                        )}
                     </button>
                 </div>
 
