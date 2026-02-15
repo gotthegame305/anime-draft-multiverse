@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LobbyPage() {
@@ -8,13 +8,28 @@ export default function LobbyPage() {
     const [joinCode, setJoinCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [userId, setUserId] = useState<string | null>(null);
+
+    useEffect(() => {
+        // Get or create anonymous user ID for consistent identification
+        let anonId = localStorage.getItem('anonUserId');
+        if (!anonId) {
+            anonId = `anon_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('anonUserId', anonId);
+        }
+        setUserId(anonId);
+    }, []);
 
     const handleCreateRoom = async () => {
         setLoading(true);
         setError('');
 
         try {
-            const res = await fetch('/api/rooms/create', { method: 'POST' });
+            const res = await fetch('/api/rooms/create', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
             const room = await res.json();
 
             if (res.ok) {
@@ -40,7 +55,7 @@ export default function LobbyPage() {
             const res = await fetch('/api/rooms/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: joinCode.toUpperCase(), isSpectator: false })
+                body: JSON.stringify({ code: joinCode.toUpperCase(), isSpectator: false, userId })
             });
 
             const room = await res.json();

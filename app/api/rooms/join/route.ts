@@ -11,11 +11,17 @@ function generateAnonymousId(): string {
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
-    // Allow both authenticated and anonymous users
-    const userId = session?.user?.id || generateAnonymousId();
-
     try {
-        const { code, isSpectator } = await req.json();
+        const { code, isSpectator, userId: clientUserId } = await req.json();
+
+        // Use authenticated user ID if available, otherwise use provided anonymous ID or generate one
+        let userId = session?.user?.id;
+        if (!userId) {
+            userId = clientUserId;
+            if (!userId) {
+                userId = generateAnonymousId();
+            }
+        }
 
         if (!code || typeof code !== 'string') {
             return NextResponse.json({ error: 'Room code required' }, { status: 400 });

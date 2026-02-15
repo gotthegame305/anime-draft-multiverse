@@ -16,13 +16,22 @@ function generateAnonymousId(): string {
     return `anon_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
-    // Allow both authenticated and anonymous users
-    const userId = session?.user?.id || generateAnonymousId();
-
     try {
+        const body = await req.json().catch(() => ({}));
+        const { userId: clientUserId } = body;
+
+        // Use authenticated user ID if available, otherwise use provided anonymous ID or generate one
+        let userId = session?.user?.id;
+        if (!userId) {
+            userId = clientUserId;
+            if (!userId) {
+                userId = generateAnonymousId();
+            }
+        }
+
         // Generate unique room code
         let code = generateRoomCode();
         let existing = await prisma.room.findUnique({ where: { code } });
