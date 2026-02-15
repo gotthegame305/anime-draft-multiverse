@@ -58,24 +58,24 @@ export async function POST(
     req: Request,
     { params }: { params: { roomId: string } }
 ) {
-    const session = await getServerSession(authOptions);
-    const body = await req.json();
-    const { userId: bodyUserId } = body;
-    
-    // Allow both authenticated and anonymous users
-    let userId = session?.user?.id;
-    if (!userId && !bodyUserId) {
-        return NextResponse.json({ error: 'No user ID' }, { status: 401 });
-    }
-    // Use provided userId (for anonymous) or session userId
-    userId = userId || bodyUserId;
-
     try {
-        const { action, data } = body;
+        const session = await getServerSession(authOptions);
+        const body = await req.json();
+        const { userId: bodyUserId, action, data } = body;
+        
+        if (!params.roomId) {
+            return NextResponse.json({ error: 'Room ID required' }, { status: 400 });
+        }
+
+        // Allow both authenticated and anonymous users
+        const userId = session?.user?.id || bodyUserId;
+        if (!userId) {
+            return NextResponse.json({ error: 'No user ID' }, { status: 401 });
+        }
 
         // Validate action
         const validActions = ['start', 'updateState', 'end', 'leave'] as const;
-        if (!validActions.includes(action)) {
+        if (!action || !validActions.includes(action)) {
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
 
@@ -89,7 +89,10 @@ export async function POST(
         }
 
         // Only host can start game
-        if (action === 'start' && room.hostId === userId) {
+        if (action === 'start') {
+            if (room.hostId !== userId) {
+                return NextResponse.json({ error: 'Only host can start game' }, { status: 403 });
+            }
             const updatedRoom = await prisma.room.update({
                 where: { id: params.roomId },
                 data: {
@@ -103,21 +106,31 @@ export async function POST(
             return NextResponse.json(updatedRoom);
         }
 
-        // Update game state
+        // Update game state - ensure data is serializable
         if (action === 'updateState') {
+            if (!data) {
+                return NextResponse.json({ error: 'Data required for updateState' }, { status: 400 });
+            }
+            
+            // Deep clean the data to ensure it's JSON serializable
+            const cleanData = JSON.parse(JSON.stringify(data));
+            
             const updatedRoom = await prisma.room.update({
                 where: { id: params.roomId },
-                data: { gameState: data }
+                data: { gameState: cleanData }
             });
 
-            await triggerRoomEvent(params.roomId, 'state-updated', data);
+            await triggerRoomEvent(params.roomId, 'state-updated', cleanData);
             return NextResponse.json(updatedRoom);
         }
-        // ... (rest of leave/end logic)
 
-        // Return existing end/leave logic
+        // Handle game end
         if (action === 'end') {
-            const finalState = data;
+            if (!data) {
+                return NextResponse.json({ error: 'Data required for end' }, { status: 400 });
+            }
+            
+            const finalState = JSON.parse(JSON.stringify(data));
             const winnerId = finalState.results?.winnerId;
 
             // Update stats for everyone in the room
@@ -127,13 +140,17 @@ export async function POST(
 
             for (const p of roomPlayers) {
                 const isWinner = p.userId === winnerId;
-                await prisma.user.update({
-                    where: { id: p.userId },
-                    data: {
-                        wins: isWinner ? { increment: 1 } : undefined,
-                        losses: !isWinner ? { increment: 1 } : undefined
-                    }
-                });
+                if (isWinner) {
+                    await prisma.user.update({
+                        where: { id: p.userId },
+                        data: { wins: { increment: 1 } }
+                    });
+                } else {
+                    await prisma.user.update({
+                        where: { id: p.userId },
+                        data: { losses: { increment: 1 } }
+                    });
+                }
             }
 
             const updatedRoom = await prisma.room.update({
@@ -148,6 +165,7 @@ export async function POST(
             return NextResponse.json(updatedRoom);
         }
 
+        // Handle player leave
         if (action === 'leave') {
             await prisma.roomPlayer.deleteMany({
                 where: { roomId: params.roomId, userId: userId }
@@ -160,11 +178,19 @@ export async function POST(
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const errorCode = (error as { code?: string }).code;
+        
+        if (process.env.NODE_ENV === 'development') {
+            console.error('[ROOM STATE ERROR]', {
+                errorMessage,
+                errorCode,
+                stack: error instanceof Error ? error.stack : undefined
+            });
+        }
 
         return NextResponse.json({
             error: 'Failed to update room',
             details: errorMessage,
-            code: errorCode // Prisma error code
+            code: errorCode
         }, { status: 500 });
     }
 }
