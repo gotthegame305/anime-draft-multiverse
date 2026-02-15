@@ -39,14 +39,13 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const [chatMessages, setChatMessages] = useState<Array<{ user: string; text: string; timestamp: string }>>([]);
     const [chatInput, setChatInput] = useState('');
 
-    const sortedPlayers = [...players].sort((a, b) => {
-        return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
-    });
-    const activePlayers = sortedPlayers.filter(p => !p.isSpectator);
+    // IMPORTANT: Don't sort! Use the same order as the server for currentTurn to work correctly!
+    // The server's currentTurn index corresponds to the original players array order
+    const activePlayers = players.filter(p => !p.isSpectator);
 
     const normUserId = userId.toLowerCase().trim();
     const myPlayerIndex = activePlayers.findIndex(p => p.userId.toLowerCase().trim() === normUserId);
-    const isSpectator = sortedPlayers.find(p => p.userId.toLowerCase().trim() === normUserId)?.isSpectator ?? true;
+    const isSpectator = players.find(p => p.userId.toLowerCase().trim() === normUserId)?.isSpectator ?? true;
     const isMyTurn = !isSpectator && gameState?.currentTurn === myPlayerIndex;
 
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
@@ -222,7 +221,20 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     }, [roomId, userId, activePlayers, syncState]);
 
     const drawCharacter = () => {
-        if (!gameState || !isMyTurn || gameState.currentDraw || characterPool.length === 0) return;
+        console.log('[DRAW] Checking conditions:', {
+            hasGameState: !!gameState,
+            isMyTurn,
+            hasCurrentDraw: !!gameState?.currentDraw,
+            poolLength: characterPool.length,
+            myPlayerIndex,
+            normUserId,
+            players: activePlayers.map(p => p.userId)
+        });
+        
+        if (!gameState || !isMyTurn || gameState.currentDraw || characterPool.length === 0) {
+            console.warn('[DRAW] Blocked - conditions not met');
+            return;
+        }
 
         const available = characterPool.filter(c => {
             return !Object.values(gameState.playerTeams).some(team =>
@@ -234,7 +246,11 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
         const randomChar = available[Math.floor(Math.random() * available.length)];
         playImpactSound();
+        
+        // When you draw, it's STILL your turn - you need to place the card
+        // Don't advance turn on draw, only on place or skip
         const newState = { ...gameState, currentDraw: randomChar };
+        console.log('[DRAW] Drew character:', randomChar.name, '- Your turn to place!');
         setGameState(newState);
         syncState(newState);
     };
