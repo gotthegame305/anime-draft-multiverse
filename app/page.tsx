@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import Leaderboard from '@/components/Leaderboard';
 
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-slate-950 text-white overflow-hidden relative">

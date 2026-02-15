@@ -1,6 +1,8 @@
 import { getCharacters } from '@/app/actions'
 import DraftGame from '@/components/DraftGame'
 
+export const dynamic = 'force-dynamic'
+
 export default async function GamePage() {
     const characters = await getCharacters()
 
