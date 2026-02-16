@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
@@ -50,6 +50,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
     const [availableUniverses, setAvailableUniverses] = useState<string[]>([]);
     const [syncTimeout, setSyncTimeout] = useState<NodeJS.Timeout | null>(null);
+    const winnerCalcInFlight = useRef(false);
 
     const playImpactSound = () => {
         if (isMuted) return;
@@ -317,28 +318,30 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
         if (skipsLeft <= 0) return;
 
-        // Move to next turn
-        const nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
-        const nextRound = gameState.round;
+        const available = characterPool.filter(c => {
+            if (!gameState.selectedUniverses.includes(c.animeUniverse)) return false;
+            if (c.id === gameState.currentDraw?.id) return false; // Redraw should be a different card.
+            return !Object.values(gameState.playerTeams).some(team =>
+                team.some(slot => slot?.id === c.id)
+            );
+        });
+
+        if (available.length === 0) return;
 
         const newSkips = { ...gameState.skipsRemaining };
         newSkips[myKey] = skipsLeft - 1;
+        const randomChar = available[Math.floor(Math.random() * available.length)];
+        playImpactSound();
 
         const newState: GameState = {
             ...gameState,
-            currentDraw: null,
-            currentTurn: nextTurn,
-            round: nextRound,
+            currentDraw: randomChar,
             skipsRemaining: newSkips,
-            status: nextRound > 5 ? 'FINISHED' : 'DRAFTING'
+            status: 'DRAFTING'
         };
 
         setGameState(newState);
         syncState(newState);
-
-        if (newState.status === 'FINISHED') {
-            calculateWinner(newState);
-        }
     };
 
     const placeCharacter = (slotIndex: number) => {
@@ -427,6 +430,16 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         setGameState(newState);
         syncState(newState);
     };
+
+    useEffect(() => {
+        if (!gameState || gameState.status !== 'FINISHED' || gameState.results || !isHost) return;
+        if (winnerCalcInFlight.current) return;
+
+        winnerCalcInFlight.current = true;
+        calculateWinner(gameState).finally(() => {
+            winnerCalcInFlight.current = false;
+        });
+    }, [gameState, isHost, calculateWinner]);
 
     if (loading || !gameState) {
         return (
@@ -627,7 +640,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                             onClick={skipCard}
                                             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-4 rounded-xl whitespace-nowrap"
                                         >
-                                            SKIP ({gameState.skipsRemaining[getNormalizedPlayerKey(Object.keys(gameState.skipsRemaining), userId)] ?? 0})
+                                            REDRAW ({gameState.skipsRemaining[getNormalizedPlayerKey(Object.keys(gameState.skipsRemaining), userId)] ?? 0})
                                         </button>
                                     </>
                                 )}
