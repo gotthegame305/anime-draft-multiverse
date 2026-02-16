@@ -50,6 +50,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
     const [availableUniverses, setAvailableUniverses] = useState<string[]>([]);
     const [syncTimeout, setSyncTimeout] = useState<NodeJS.Timeout | null>(null);
+    const [leavingToLobby, setLeavingToLobby] = useState(false);
     const winnerCalcInFlight = useRef(false);
 
     const playImpactSound = () => {
@@ -431,6 +432,36 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         syncState(newState);
     };
 
+    const goToLobby = useCallback(async () => {
+        if (leavingToLobby) return;
+        setLeavingToLobby(true);
+
+        if (syncTimeout) clearTimeout(syncTimeout);
+        unsubscribeFromRoom(roomId);
+
+        try {
+            await fetch(`/api/rooms/${roomId}/state`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'leave',
+                    userId
+                })
+            });
+        } catch {
+            // Best effort; navigation should still proceed.
+        }
+
+        router.push('/lobby');
+
+        // Fallback for occasional client-router stalls.
+        setTimeout(() => {
+            if (typeof window !== 'undefined' && window.location.pathname !== '/lobby') {
+                window.location.assign('/lobby');
+            }
+        }, 900);
+    }, [leavingToLobby, roomId, router, syncTimeout, userId]);
+
     useEffect(() => {
         if (!gameState || gameState.status !== 'FINISHED' || gameState.results || !isHost) return;
         if (winnerCalcInFlight.current) return;
@@ -571,10 +602,11 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     )}
 
                     <button
-                        onClick={() => router.push('/lobby')}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl"
+                        onClick={() => { void goToLobby(); }}
+                        disabled={leavingToLobby}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-xl"
                     >
-                        Back to Lobby
+                        {leavingToLobby ? 'Leaving...' : 'Back to Lobby'}
                     </button>
                 </div>
             </div>
