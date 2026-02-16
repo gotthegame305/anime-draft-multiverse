@@ -219,7 +219,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         selectedUniverses: roomData.gameState.selectedUniverses || universes,                    };
                     setGameState(hydratedState);
                     setLoading(false);
-                } else if (roomData.status === 'WAITING' && roomData.hostId === userId) {
+                } else if ((roomData.status === 'WAITING' || roomData.status === 'DRAFTING') && roomData.hostId === userId) {
                     console.log('[GAME INIT] Initializing game as host');
                     const initialState: GameState = {
                         currentTurn: 0,
