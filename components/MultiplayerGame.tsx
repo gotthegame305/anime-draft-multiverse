@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
@@ -39,7 +39,10 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const [isMuted, setIsMuted] = useState(false);
     // IMPORTANT: Don't sort! Use the same order as the server for currentTurn to work correctly!
     // The server's currentTurn index corresponds to the original players array order
-    const activePlayers = players.filter(p => !p.isSpectator);
+    const activePlayers = useMemo(
+        () => players.filter(p => !p.isSpectator),
+        [players]
+    );
 
     const normUserId = userId.toLowerCase().trim();
     const myPlayerIndex = activePlayers.findIndex(p => p.userId.toLowerCase().trim() === normUserId);
@@ -206,7 +209,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
                 console.log('[GAME INIT] Room data:', roomData);
 
-                if (roomData.gameState) {
+                const hasGameState = roomData.gameState && Object.keys(roomData.gameState).length > 0;
+
+                if (hasGameState) {
                     console.log('[GAME INIT] Loading existing game state');
                     const hydratedState: GameState = {
                         ...roomData.gameState,
@@ -214,7 +219,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         selectedUniverses: roomData.gameState.selectedUniverses || universes,                    };
                     setGameState(hydratedState);
                     setLoading(false);
-                } else if (roomData.hostId === userId) {
+                } else if (roomData.status === 'WAITING' && roomData.hostId === userId) {
                     console.log('[GAME INIT] Initializing game as host');
                     const initialState: GameState = {
                         currentTurn: 0,
@@ -238,11 +243,11 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     setLoading(false);
                     syncState(initialState);
                 } else {
-                    console.log('[GAME INIT] Waiting for host to initialize');
+                    console.log('[GAME INIT] Waiting for valid game state');
                     const poll = setInterval(async () => {
                         const r = await fetch(`/api/rooms/${roomId}/state`);
                         const d = await r.json();
-                        if (d.gameState) {
+                        if (d.gameState && Object.keys(d.gameState).length > 0) {
                             console.log('[GAME INIT] Game state loaded from host');
                             const hydratedState: GameState = {
                                 ...d.gameState,
