@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { getClientIp, isRateLimited } from '@/lib/rate-limit';
 
 function generateRoomCode(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed ambiguous chars
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
     try {
+        const ip = getClientIp(req);
+        if (isRateLimited(`rooms:create:${ip}`, 20, 60_000)) {
+            return NextResponse.json({ error: 'Too many create attempts' }, { status: 429 });
+        }
+
         const body = await req.json().catch(() => ({}));
         const { userId: clientUserId } = body;
 

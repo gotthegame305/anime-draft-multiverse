@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { triggerRoomEvent } from '@/lib/pusher';
+import { getClientIp, isRateLimited } from '@/lib/rate-limit';
 
 function generateAnonymousId(): string {
     return `anon_${Math.random().toString(36).substr(2, 9)}`;
@@ -12,6 +13,11 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
     try {
+        const ip = getClientIp(req);
+        if (isRateLimited(`rooms:join:${ip}`, 40, 60_000)) {
+            return NextResponse.json({ error: 'Too many join attempts' }, { status: 429 });
+        }
+
         const { code, isSpectator, userId: clientUserId } = await req.json();
 
         // Use authenticated user ID if available, otherwise use provided anonymous ID or generate one

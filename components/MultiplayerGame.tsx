@@ -49,9 +49,10 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
     const [availableUniverses, setAvailableUniverses] = useState<string[]>([]);
-    const [syncTimeout, setSyncTimeout] = useState<NodeJS.Timeout | null>(null);
     const [leavingToLobby, setLeavingToLobby] = useState(false);
     const winnerCalcInFlight = useRef(false);
+    const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastSyncedPayloadRef = useRef<string>('');
 
     const playImpactSound = () => {
         if (isMuted) return;
@@ -65,33 +66,37 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     };
 
     const syncState = useCallback(async (state: GameState) => {
-        if (syncTimeout) clearTimeout(syncTimeout);
+        const payload = JSON.stringify({
+            action: 'updateState',
+            data: state,
+            userId
+        });
+        if (payload === lastSyncedPayloadRef.current) return;
+
+        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
         
         const timeout = setTimeout(async () => {
             try {
                 const res = await fetch(`/api/rooms/${roomId}/state`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        action: 'updateState', 
-                        data: state,
-                        userId: userId
-                    })
+                    body: payload
                 });
 
                 if (!res.ok && process.env.NODE_ENV === 'development') {
                     const error = await res.json();
                     console.error('[SYNC STATE ERROR]', error);
                 }
+                lastSyncedPayloadRef.current = payload;
             } catch (err) {
                 if (process.env.NODE_ENV === 'development') {
                     console.error('[SYNC STATE FETCH ERROR]', err);
                 }
             }
-        }, 300);
+        }, 1000);
         
-        setSyncTimeout(timeout);
-    }, [roomId, userId, syncTimeout]);
+        syncTimeoutRef.current = timeout;
+    }, [roomId, userId]);
 
     const getNormalizedPlayerKey = useCallback((keys: string[], targetUserId: string) => {
         const normTarget = targetUserId.toLowerCase().trim();
@@ -247,7 +252,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                             setLoading(false);
                             clearInterval(poll);
                         }
-                    }, 2000);
+                    }, 5000);
                     return () => clearInterval(poll);
                 }
             } catch (error) {
@@ -436,7 +441,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         if (leavingToLobby) return;
         setLeavingToLobby(true);
 
-        if (syncTimeout) clearTimeout(syncTimeout);
+        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
         unsubscribeFromRoom(roomId);
 
         try {
@@ -460,7 +465,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 window.location.assign('/lobby');
             }
         }, 900);
-    }, [leavingToLobby, roomId, router, syncTimeout, userId]);
+    }, [leavingToLobby, roomId, router, userId]);
 
     useEffect(() => {
         if (!gameState || gameState.status !== 'FINISHED' || gameState.results || !isHost) return;
@@ -701,6 +706,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                         {isActive && ' 🎯'}
                                     </h3>
                                     <p className="text-sm text-gray-400">Skip: {playerSkips}/{INITIAL_SKIPS}</p>
+                                </div>
                                 {isActive && gameState.currentDraw && (
                                     <div className="mb-3 flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2">
                                         <div className="relative w-12 h-16 rounded overflow-hidden flex-shrink-0">
@@ -718,7 +724,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                         </div>
                                     </div>
                                 )}
-                                </div>
                                 <div className="grid grid-cols-5 gap-2">
                                     {ROLES.map((role, slotIdx) => {
                                         const char = team[slotIdx];

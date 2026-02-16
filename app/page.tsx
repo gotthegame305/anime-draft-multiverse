@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Leaderboard from '@/components/Leaderboard';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,10 +38,6 @@ export default function Home() {
             MULTIPLAYER LOBBY
           </Link>
         </div>
-      </div>
-
-      <div className="relative z-10 w-full px-4 mt-8">
-        <Leaderboard />
       </div>
 
       {/* Decorative Elements */}

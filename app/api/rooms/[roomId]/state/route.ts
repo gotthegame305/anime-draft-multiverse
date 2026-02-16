@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { triggerRoomEvent } from '@/lib/pusher';
+import { getClientIp, isRateLimited } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -59,6 +60,11 @@ export async function POST(
     { params }: { params: { roomId: string } }
 ) {
     try {
+        const ip = getClientIp(req);
+        if (isRateLimited(`rooms:state:${params.roomId}:${ip}`, 240, 60_000)) {
+            return NextResponse.json({ error: 'Too many state requests' }, { status: 429 });
+        }
+
         const session = await getServerSession(authOptions);
         const body = await req.json();
         const { userId: bodyUserId, action, data } = body;

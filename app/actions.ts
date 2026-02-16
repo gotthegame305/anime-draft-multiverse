@@ -33,9 +33,17 @@ export interface CharacterItem {
 }
 
 const ROLES_ORDER = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
+const CHARACTER_CACHE_TTL_MS = 60_000;
+const characterCache = new Map<number, { expiresAt: number; data: CharacterItem[] }>();
 
 export async function getCharacters(limit = 500) {
     try {
+        const now = Date.now();
+        const cached = characterCache.get(limit);
+        if (cached && cached.expiresAt > now) {
+            return cached.data;
+        }
+
         // Fetch more characters to allow client-side filtering
         const characters = await prisma.character.findMany({
             take: limit, // Increased limit for better variety
@@ -43,7 +51,7 @@ export async function getCharacters(limit = 500) {
         })
 
         // Just map them, don't slice yet. Client will filter and shuffle.
-        return characters.map((char: DbCharacter) => {
+        const mapped = characters.map((char: DbCharacter) => {
             const stats = char.stats as { favorites: number };
 
             // Use stored AI ratings if available, otherwise random seed
@@ -68,6 +76,8 @@ export async function getCharacters(limit = 500) {
                 }
             };
         });
+        characterCache.set(limit, { expiresAt: now + CHARACTER_CACHE_TTL_MS, data: mapped });
+        return mapped;
     } catch (error) {
         if (process.env.NODE_ENV === 'development') {
             console.error('Failed to fetch characters:', error);

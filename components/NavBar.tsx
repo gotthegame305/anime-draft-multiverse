@@ -27,7 +27,6 @@ export default function NavBar() {
                     {/* Desktop Nav */}
                     <div className="hidden md:flex items-center space-x-8">
                         <NavLink href="/" active={isActive("/")}>Play Game</NavLink>
-                        <NavLink href="/leaderboard" active={isActive("/leaderboard")}>Leaderboard</NavLink>
                     </div>
 
                     {/* User Area */}
