@@ -701,6 +701,23 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                         {isActive && ' 🎯'}
                                     </h3>
                                     <p className="text-sm text-gray-400">Skip: {playerSkips}/{INITIAL_SKIPS}</p>
+                                {isActive && gameState.currentDraw && (
+                                    <div className="mb-3 flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2">
+                                        <div className="relative w-12 h-16 rounded overflow-hidden flex-shrink-0">
+                                            <Image
+                                                src={gameState.currentDraw.imageUrl}
+                                                alt={gameState.currentDraw.name}
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] uppercase tracking-wide text-slate-400">Current Draw</p>
+                                            <p className="text-sm text-yellow-300 font-bold truncate">{gameState.currentDraw.name}</p>
+                                            <p className="text-xs text-slate-400 truncate">{gameState.currentDraw.animeUniverse}</p>
+                                        </div>
+                                    </div>
+                                )}
                                 </div>
                                 <div className="grid grid-cols-5 gap-2">
                                     {ROLES.map((role, slotIdx) => {
