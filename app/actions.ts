@@ -46,7 +46,7 @@ export async function getCharacters(limit = 500) {
 
         // Fetch more characters to allow client-side filtering
         const characters = await prisma.character.findMany({
-            take: limit, // Increased limit for better variety
+            take: limit,
             orderBy: { stats: 'desc' },
         })
 
@@ -86,7 +86,8 @@ export async function getCharacters(limit = 500) {
     }
 }
 
-export async function submitMatch(userId: string, userTeam: (CharacterItem | null)[], cpuTeam: (CharacterItem | null)[]) {
+// userId is null for guests — they play but their results are not recorded
+export async function submitMatch(userId: string | null, userTeam: (CharacterItem | null)[], cpuTeam: (CharacterItem | null)[]) {
     let userScore = 0;
     let cpuScore = 0;
     const logs: string[] = [];
@@ -134,9 +135,9 @@ export async function submitMatch(userId: string, userTeam: (CharacterItem | nul
     const isWin = userScore > cpuScore;
     logs.push(isWin ? `FINAL SCORE: ${userScore}-${cpuScore} (VICTORY!)` : `FINAL SCORE: ${userScore}-${cpuScore} (DEFEAT!)`);
 
-    // Try creating match, ignore user update if not auth
-    try {
-        if (userId && userId !== 'user-123') { // ignore mock ID
+    // Only persist stats for authenticated (logged-in) users — guests play without being recorded
+    if (userId) {
+        try {
             await prisma.user.update({
                 where: { id: userId },
                 data: {
@@ -144,24 +145,26 @@ export async function submitMatch(userId: string, userTeam: (CharacterItem | nul
                     losses: !isWin ? { increment: 1 } : undefined,
                 }
             });
-        }
 
-        // Only create match if we have data
-        await prisma.match.create({
-            data: {
-                winnerId: isWin ? (userId !== 'user-123' ? userId : "Anonymous") : 'CPU',
-                teamDrafted: JSON.parse(JSON.stringify({ user: userTeam, cpu: cpuTeam })),
+            // Only create a match record when we have a real winner user ID
+            if (isWin) {
+                await prisma.match.create({
+                    data: {
+                        winnerId: userId,
+                        teamDrafted: JSON.parse(JSON.stringify({ user: userTeam, cpu: cpuTeam })),
+                    }
+                });
             }
-        });
-
-    } catch (e) {
-        if (process.env.NODE_ENV === 'development') {
-            console.error("Database error in submitMatch:", e);
+        } catch (e) {
+            if (process.env.NODE_ENV === 'development') {
+                console.error('Database error in submitMatch:', e);
+            }
+            // Continue to return result even if DB write fails
         }
-        // We continue to return result even if DB fails
+
+        revalidatePath('/');
     }
 
-    revalidatePath('/');
     return { isWin, userScore, cpuScore, logs };
 }
 
@@ -202,7 +205,7 @@ export async function updateUserStats(userId: string, outcome: 'win' | 'loss') {
         revalidatePath('/');
     } catch (e) {
         if (process.env.NODE_ENV === 'development') {
-            console.error("Failed to update user stats:", e);
+            console.error('Failed to update user stats:', e);
         }
     }
 }
