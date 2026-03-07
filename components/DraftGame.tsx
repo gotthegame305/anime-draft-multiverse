@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { updateUserStats } from '@/app/actions'
+import { submitMatch } from '@/app/actions'
 import Image from 'next/image'
+import { ROLES_DISPLAY, GAME_CONFIG } from '@/lib/gameConfig'
 
 interface Character {
     id: number
@@ -14,11 +15,12 @@ interface Character {
 
 interface DraftGameProps {
     initialCharacters: Character[]
-    userId?: string // Optional for now
+    userId?: string
 }
 
-const ROLES = ['Captain', 'Vice Captain', 'Tank', 'Duelist', 'Support']
-const INITIAL_SKIPS = 2
+const ROLES = ROLES_DISPLAY
+const INITIAL_SKIPS = GAME_CONFIG.initialSkips
+const IMPACT_SOUND_URL = GAME_CONFIG.impactSoundUrl
 
 export default function DraftGame({ initialCharacters, userId }: DraftGameProps) {
     const [universes, setUniverses] = useState<string[]>([])
@@ -32,18 +34,15 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
     const [board, setBoard] = useState<(Character | null)[]>([null, null, null, null, null])
     const [opponentTeam, setOpponentTeam] = useState<Character[]>([])
     const [skips, setSkips] = useState(INITIAL_SKIPS)
-    const [result, setResult] = useState<'win' | 'loss' | null>(null)
+    const [matchResult, setMatchResult] = useState<{ isWin: boolean; userScore: number; cpuScore: number; logs: string[] } | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [isMuted, setIsMuted] = useState(false) // Audio state
-
-    // Audio Constants
-    const IMPACT_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3' // Gacha/Whoosh Sound
+    const [isMuted, setIsMuted] = useState(false)
 
     // Initialize universes on load
     useEffect(() => {
         const uniqueUniverses = Array.from(new Set(initialCharacters.map(c => c.animeUniverse))).sort()
         setUniverses(uniqueUniverses)
-        setSelectedUniverses(uniqueUniverses) // Select all by default
+        setSelectedUniverses(uniqueUniverses)
     }, [initialCharacters])
 
     // Start Game: Filter and Shuffle
@@ -60,30 +59,21 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         try {
             const audio = new Audio(IMPACT_SOUND_URL)
             audio.volume = 0.5
-            audio.play().catch(e => console.error("Audio play failed:", e))
-        } catch (error) {
-            console.error("Audio error:", error)
+            audio.play().catch(() => { /* silent fail */ })
+        } catch {
+            // silent fail
         }
     }
 
     const announceCharacter = (text: string) => {
         if (isMuted || !window.speechSynthesis) return
-
-        // Cancel previous speech to avoid queueing
         window.speechSynthesis.cancel()
-
         const utterance = new SpeechSynthesisUtterance(text)
         utterance.volume = 1.0
-        utterance.rate = 1.1 // Slightly faster/excited
-
-        // Try to get Japanese voice, fallback to default
+        utterance.rate = 1.1
         const voices = window.speechSynthesis.getVoices()
         const jaVoice = voices.find(v => v.lang.includes('ja') || v.lang === 'ja-JP')
-
-        if (jaVoice) {
-            utterance.voice = jaVoice
-        }
-
+        if (jaVoice) utterance.voice = jaVoice
         window.speechSynthesis.speak(utterance)
     }
 
@@ -94,10 +84,8 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         const drawn = newDeck.pop() || null
         setDeck(newDeck)
         setHand(drawn)
-
         if (drawn) {
             playImpactSound()
-            // Small delay for name announcement to let impact sound hit first
             setTimeout(() => announceCharacter(drawn.name), 300)
         }
     }
@@ -105,15 +93,12 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
     // Place Card
     const placeCharacter = (index: number) => {
         if (!hand || board[index]) return
-
         const newBoard = [...board]
         newBoard[index] = hand
         setBoard(newBoard)
         setHand(null)
-
-        // Check if board is full
         if (newBoard.every(slot => slot !== null)) {
-            generateOpponent(newBoard as Character[], deck) // Pass remaining deck for opponent generation
+            generateOpponentAndScore(newBoard as Character[], deck)
         }
     }
 
@@ -125,31 +110,22 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         }
     }
 
-    // Generate Opponent & Show Result
-    const generateOpponent = (playerBoard: Character[], remainingDeck: Character[]) => {
-        // Ideally we want a distinct set of characters, so we continue from the remaining deck
-        // If we run out, we might need to reuse 'initialCharacters' excluding player board.
-
+    // Generate Opponent & Auto-Calculate Result
+    const generateOpponentAndScore = async (playerBoard: Character[], remainingDeck: Character[]) => {
         let opponentDeck = [...remainingDeck]
         if (opponentDeck.length < 5) {
-            // Fallback if deck is too small: reshuffle everything excluding player board
             const usedIds = new Set(playerBoard.map(c => c.id))
             opponentDeck = initialCharacters.filter(c => !usedIds.has(c.id)).sort(() => 0.5 - Math.random())
         }
-
         const opponent = opponentDeck.slice(0, 5)
         setOpponentTeam(opponent)
         setGameState('RESULT')
-    }
 
-    // Submit Result
-    const handleGameEnd = async (outcome: 'win' | 'loss') => {
-        setResult(outcome)
-        if (userId) {
-            setIsSubmitting(true)
-            await updateUserStats(userId, outcome)
-            setIsSubmitting(false)
-        }
+        // Auto-calculate winner — no self-reporting
+        setIsSubmitting(true)
+        const result = await submitMatch(userId ?? null, playerBoard, opponent)
+        setMatchResult(result)
+        setIsSubmitting(false)
     }
 
     const resetGame = () => {
@@ -157,7 +133,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setBoard([null, null, null, null, null])
         setHand(null)
         setSkips(INITIAL_SKIPS)
-        setResult(null)
+        setMatchResult(null)
         setOpponentTeam([])
     }
 
@@ -200,13 +176,36 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
     }
 
     if (gameState === 'RESULT') {
+        const isWin = matchResult?.isWin
         return (
             <div className="flex flex-col items-center justify-start min-h-screen p-4 bg-gray-950 text-white overflow-y-auto">
-                <h1 className="text-4xl font-extrabold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-500">
-                    Community Vote
-                </h1>
+                {/* Guest banner */}
+                {!userId && (
+                    <div className="w-full max-w-4xl mb-4 bg-yellow-500/10 border border-yellow-500/40 rounded-xl px-4 py-3 text-center text-yellow-300 text-sm">
+                        🎮 Playing as Guest — <a href="/auth/signin" className="underline font-bold hover:text-yellow-200">Log in</a> to save your score to the leaderboard
+                    </div>
+                )}
 
-                <div className="grid grid-cols-2 gap-4 w-full max-w-4xl mb-8">
+                {/* Result header */}
+                {isSubmitting ? (
+                    <h1 className="text-4xl font-extrabold mb-4 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 animate-pulse">
+                        Calculating result...
+                    </h1>
+                ) : matchResult ? (
+                    <h1 className={`text-4xl font-extrabold mb-2 text-center text-transparent bg-clip-text bg-gradient-to-r ${isWin ? 'from-yellow-400 to-orange-400' : 'from-red-400 to-pink-500'}`}>
+                        {isWin ? '🏆 Victory!' : '💀 Defeat!'}
+                    </h1>
+                ) : null}
+                {matchResult && (
+                    <p className="text-gray-400 mb-6 text-center">
+                        Score: <span className={isWin ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>{matchResult.userScore}</span>
+                        {' — '}
+                        <span className="text-gray-300">CPU</span>: <span className="text-gray-400 font-bold">{matchResult.cpuScore}</span>
+                    </p>
+                )}
+
+                {/* Teams */}
+                <div className="grid grid-cols-2 gap-4 w-full max-w-4xl mb-6">
                     {/* Player Team */}
                     <div className="bg-gray-900/50 p-4 rounded-xl border border-blue-500/30">
                         <h2 className="text-xl font-bold mb-4 text-blue-400 text-center">Your Team</h2>
@@ -248,31 +247,31 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                     </div>
                 </div>
 
-                {!result ? (
-                    <div className="flex space-x-6">
-                        <button
-                            onClick={() => handleGameEnd('win')}
-                            disabled={isSubmitting}
-                            className="px-8 py-4 rounded-full bg-green-600 hover:bg-green-500 text-white font-bold text-xl shadow-lg shadow-green-500/30 transition-all transform hover:scale-105"
-                        >
-                            I Won 🏆
-                        </button>
-                        <button
-                            onClick={() => handleGameEnd('loss')}
-                            disabled={isSubmitting}
-                            className="px-8 py-4 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xl shadow-lg shadow-red-500/30 transition-all transform hover:scale-105"
-                        >
-                            I Lost 💀
-                        </button>
+                {/* Battle Log */}
+                {matchResult?.logs && matchResult.logs.length > 0 && (
+                    <div className="w-full max-w-4xl mb-6 bg-black/40 border border-gray-700 rounded-xl p-4 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
+                        {matchResult.logs.map((log, i) => (
+                            <div
+                                key={i}
+                                className={`${log.includes('✅') ? 'text-green-400' : log.includes('❌') ? 'text-red-400' : log.includes('FINAL') ? 'text-yellow-300 font-bold' : 'text-slate-300'}`}
+                            >
+                                {log}
+                            </div>
+                        ))}
                     </div>
-                ) : (
-                    <div className="text-center animate-bounce">
-                        <h2 className="text-3xl font-bold mb-4">
-                            {result === 'win' ? 'Victory Recorded!' : 'Defeat Recorded...'}
-                        </h2>
+                )}
+
+                {/* Play Again / Result summary */}
+                {matchResult && (
+                    <div className="text-center">
+                        {userId && (
+                            <p className="text-gray-500 text-sm mb-4">
+                                {isWin ? '✅ Win recorded to your profile!' : '📊 Loss recorded to your profile.'}
+                            </p>
+                        )}
                         <button
                             onClick={resetGame}
-                            className="px-6 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition"
+                            className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-lg transition-all transform hover:scale-105 shadow-lg"
                         >
                             Play Again
                         </button>
@@ -329,11 +328,11 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                             disabled={!hand || char !== null}
                             className={`w-full relative h-20 sm:h-24 rounded-xl border transition-all duration-300 flex items-center px-4 space-x-4
                  ${char
-                                    ? 'bg-gray-800 border-gray-700 opacity-100'
-                                    : hand
-                                        ? 'bg-gray-900/50 border-blue-500/50 hover:bg-blue-900/20 hover:border-blue-400 cursor-pointer animate-pulse'
-                                        : 'bg-gray-900/30 border-gray-800 cursor-default'}
-               `}
+                                ? 'bg-gray-800 border-gray-700 opacity-100'
+                                : hand
+                                    ? 'bg-gray-900/50 border-blue-500/50 hover:bg-blue-900/20 hover:border-blue-400 cursor-pointer animate-pulse'
+                                    : 'bg-gray-900/30 border-gray-800 cursor-default'}
+                `}
                         >
                             {/* Role Label */}
                             <span className="absolute top-1 right-2 text-[10px] uppercase font-bold tracking-widest text-gray-500">

@@ -1,0 +1,263 @@
+﻿
+Running 1 test using 1 worker
+
+node.exe : 
+[2m[WebServer] [22m[n
+ext-auth][warn][NEXTAUT
+H_URL] 
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Users\carlm\AppData
+\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: ([2m[WebServe   
+ r]...[NEXTAUTH_URL    
+] :String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+[2m[WebServer] [22mht
+tps://next-auth.js.org/
+warnings#nextauth_url
+[2m[WebServer] [22m[n
+ext-auth][warn][NO_SECR
+ET] 
+[2m[WebServer] [22mht
+tps://next-auth.js.org/
+warnings#no_secret
+[2m[WebServer] 
+[22mFailed to fetch 
+characters: PrismaClien
+tInitializationError: 
+[2m[WebServer] 
+[22mInvalid `prisma.ch
+aracter.findMany()` 
+invocation:
+[2m[WebServer] [22m
+[2m[WebServer] [22m
+[2m[WebServer] 
+[22mCan't reach 
+database server at 
+`db.prisma.io:5432`
+[2m[WebServer] [22m
+[2m[WebServer] 
+[22mPlease make sure 
+your database server 
+is running at 
+`db.prisma.io:5432`.
+[2m[WebServer] [22m  
+  at 
+ei.handleRequestError 
+[90m(C:\Users\carlm\ALL
+ Projects made with 
+Antigravity\anime 
+guess game\[39mnode_mo
+dules\[4m@prisma\clien
+t[24m\runtime\library.
+js:121:7568[90m)[39m
+[2m[WebServer] [22m  
+  at ei.handleAndLogReq
+uestError [90m(C:\User
+s\carlm\ALL Projects 
+made with 
+Antigravity\anime 
+guess game\[39mnode_mo
+dules\[4m@prisma\clien
+t[24m\runtime\library.
+js:121:6593[90m)[39m
+[2m[WebServer] [22m  
+  at ei.request [90m(C
+:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\[39mnode_mo
+dules\[4m@prisma\clien
+t[24m\runtime\library.
+js:121:6300[90m)[39m
+[2m[WebServer] [22m  
+  at async a [90m(C:\U
+sers\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\[39mnode_mo
+dules\[4m@prisma\clien
+t[24m\runtime\library.
+js:130:9551[90m)[39m
+[2m[WebServer] [22m  
+  at async 
+getCharacters (webpack-
+internal:///(rsc)/./app
+/actions.ts:36:28)
+[2m[WebServer] [22m  
+  at async Promise.all 
+(index 0)
+[2m[WebServer] [22m  
+  at async GamePage (we
+bpack-internal:///(rsc)
+/./app/game/page.tsx:20
+:35) {
+[2m[WebServer] [22m  
+clientVersion: 
+[32m'6.19.2'[39m,
+[2m[WebServer] [22m  
+errorCode: 
+[90mundefined[39m,
+[2m[WebServer] [22m  
+retryable: 
+[90mundefined[39m
+[2m[WebServer] [22m}
+[2m[WebServer] [22mPr
+ismaClientInitializatio
+nError: Can't reach 
+database server at 
+`db.prisma.io:5432`
+[2m[WebServer] [22m
+[2m[WebServer] 
+[22mPlease make sure 
+your database server 
+is running at 
+`db.prisma.io:5432`.
+[2m[WebServer] [22m  
+  at r [90m(C:\Users\c
+arlm\ALL Projects made 
+with Antigravity\anime 
+guess game\[39mnode_mo
+dules\[4m@prisma\clien
+t[24m\runtime\library.
+js:112:2770[90m)[39m 
+{
+[2m[WebServer] [22m  
+clientVersion: 
+[32m'6.19.2'[39m,
+[2m[WebServer] [22m  
+errorCode: 
+[32m'P1001'[39m,
+[2m[WebServer] [22m  
+retryable: 
+[90mundefined[39m
+[2m[WebServer] [22m}
+[2m[WebServer] [22m 
+[31m[1mΓ¿»[22m[39m 
+unhandledRejection: Pri
+smaClientInitialization
+Error: Can't reach 
+database server at 
+`db.prisma.io:5432`
+[2m[WebServer] [22m
+[2m[WebServer] 
+[22mPlease make sure 
+your database server 
+is running at 
+`db.prisma.io:5432`.
+[2m[WebServer] [22m  
+  at r [90m(C:\Users\c
+arlm\ALL Projects made 
+with Antigravity\anime 
+guess game\[39mnode_mo
+dules\[4m@prisma\clien
+t[24m\runtime\library.
+js:112:2770[90m)[39m 
+{
+[2m[WebServer] [22m  
+clientVersion: 
+[32m'6.19.2'[39m,
+[2m[WebServer] [22m  
+errorCode: 
+[32m'P1001'[39m,
+[2m[WebServer] [22m  
+retryable: 
+[90mundefined[39m
+[2m[WebServer] [22m}
+[2m[WebServer] [22m 
+[31m[1mΓ¿»[22m[39m 
+unhandledRejection: Pri
+smaClientInitialization
+Error: Can't reach 
+database server at 
+`db.prisma.io:5432`
+[2m[WebServer] [22m
+[2m[WebServer] 
+[22mPlease make sure 
+your database server 
+is running at 
+`db.prisma.io:5432`.
+[2m[WebServer] [22m  
+  at r [90m(C:\Users\c
+arlm\ALL Projects made 
+with Antigravity\anime 
+guess game\[39mnode_mo
+dules\[4m@prisma\clien
+t[24m\runtime\library.
+js:112:2770[90m)[39m 
+{
+[2m[WebServer] [22m  
+clientVersion: 
+[32m'6.19.2'[39m,
+[2m[WebServer] [22m  
+errorCode: 
+[32m'P1001'[39m,
+[2m[WebServer] [22m  
+retryable: 
+[90mundefined[39m
+[2m[WebServer] [22m}
+No universes found. Make sure characters are seeded.
+[2m[WebServer] [22m[n
+ext-auth][warn][NEXTAUT
+H_URL] 
+[2m[WebServer] [22mht
+tps://next-auth.js.org/
+warnings#nextauth_url
+[2m[WebServer] [22m[n
+ext-auth][warn][NO_SECR
+ET] 
+[2m[WebServer] [22mht
+tps://next-auth.js.org/
+warnings#no_secret
+  Γ£ÿ  1 [chromium] ΓÇ║ tests\game.spec.ts:3:5 ΓÇ║ Anime Draft Game Flow (30.0s)
+
+
+  1) [chromium] ΓÇ║ tests\game.spec.ts:3:5 ΓÇ║ Anime Draft Game Flow ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByRole('button', { name: 'Start Draft' })[22m
+    [2m    - locator resolved to <button disabled class="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-xl hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25">Start Draft</button>[22m
+    [2m  - attempting click action[22m
+    [2m    2 ├ù waiting for element to be visible, enabled and stable[22m
+    [2m      - element is not enabled[22m
+    [2m    - retrying click action[22m
+    [2m    - waiting 20ms[22m
+    [2m    2 ├ù waiting for element to be visible, enabled and stable[22m
+    [2m      - element is not enabled[22m
+    [2m    - retrying click action[22m
+    [2m      - waiting 100ms[22m
+    [2m    53 ├ù waiting for element to be visible, enabled and stable[22m
+    [2m       - element is not enabled[22m
+    [2m     - retrying click action[22m
+    [2m       - waiting 500ms[22m
+    [2m    - waiting for element to be visible, enabled and stable[22m
+
+
+      21 |         console.log('No universes found. Make sure characters are seeded.');
+      22 |         // Proceeding might fail if the button is disabled, but let's see.
+    > 23 |         await page.getByRole('button', { name: 'Start Draft' }).click();
+         |                                                                 ^
+      24 |     }
+      25 |
+      26 |     // 3. Draft Phase
+        at C:\Users\carlm\ALL Projects made with Antigravity\anime guess game\tests\game.spec.ts:23:65
+
+    Error Context: test-results\game-Anime-Draft-Game-Flow-chromium\error-context.md
+
+  1 failed
+    [chromium] ΓÇ║ tests\game.spec.ts:3:5 ΓÇ║ Anime Draft Game Flow ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ

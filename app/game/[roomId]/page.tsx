@@ -14,6 +14,7 @@ export default function GamePage({ params }: { params: { roomId: string } }) {
     const { data: session } = useSession();
     const [userId, setUserId] = useState<string | null>(null);
     const [players, setPlayers] = useState<Player[]>([]);
+    const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -41,11 +42,18 @@ export default function GamePage({ params }: { params: { roomId: string } }) {
                 const room = await res.json();
 
                 if (res.ok && room.players) {
-                    setPlayers(room.players.map((p: { userId: string; isSpectator: boolean; joinedAt: string }) => ({
+                    setPlayers(room.players.map((p: any) => ({
                         userId: p.userId,
                         isSpectator: p.isSpectator,
                         joinedAt: p.joinedAt
                     })));
+
+                    const names: Record<string, string> = {};
+                    room.players.forEach((p: any, idx: number) => {
+                        const displayName = p.user?.username || p.user?.name || `Player ${idx + 1}`;
+                        names[p.userId] = displayName;
+                    });
+                    setPlayerNames(names);
                 }
             } catch (err) {
                 console.error('[GAME PAGE] Failed to load room:', err);
@@ -70,6 +78,7 @@ export default function GamePage({ params }: { params: { roomId: string } }) {
             roomId={params.roomId}
             userId={userId}
             players={players}
+            playerNames={playerNames}
         />
     );
 }

@@ -68,14 +68,13 @@ test('Anime Draft Game Flow', async ({ page }) => {
     }
 
     // 4. Result Phase
-    await expect(page.getByText('Community Vote')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Your Team')).toBeVisible({ timeout: 15000 });
 
     // Check that Opponent Team is generated
     await expect(page.getByText('Opponent Team')).toBeVisible();
 
-    // Click Result
-    await page.getByRole('button', { name: 'I Won' }).click();
-
-    // Expect Victory Message
-    await expect(page.getByText('Victory Recorded!')).toBeVisible();
+    // Expect either Victory or Defeat Message — since it's auto-calculated based on power
+    const victory = page.getByText('🏆 Victory!');
+    const defeat = page.getByText('💀 Defeat!');
+    await expect(victory.or(defeat)).toBeVisible({ timeout: 10000 });
 });

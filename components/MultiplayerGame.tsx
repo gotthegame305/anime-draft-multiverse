@@ -3,8 +3,11 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
+import { pusherClient, subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters, CharacterItem } from '@/app/actions';
+import { ROLES, ROLE_KEYS, GAME_CONFIG } from '@/lib/gameConfig';
+
+const { initialSkips: INITIAL_SKIPS, minPoolSize: MIN_POOL_SIZE, turnTimeoutMs: TURN_TIMEOUT_MS, impactSoundUrl: IMPACT_SOUND_URL } = GAME_CONFIG;
 
 interface GameState {
     currentTurn: number;
@@ -22,23 +25,26 @@ interface GameState {
     hostId?: string;
 }
 
-const ROLES = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'];
-const ROLE_KEYS = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
-const INITIAL_SKIPS = 2;
-const IMPACT_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3';
-const MIN_POOL_SIZE = 10;
-
-export default function MultiplayerGame({ roomId, userId, players }: {
+export default function MultiplayerGame({
+    roomId,
+    userId,
+    players,
+    playerNames = {},
+}: {
     roomId: string;
     userId: string;
     players: Array<{ userId: string; isSpectator: boolean; joinedAt: string }>;
+    playerNames?: Record<string, string>;
 }) {
     const router = useRouter();
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [loading, setLoading] = useState(true);
     const [isMuted, setIsMuted] = useState(false);
+    const [pusherError, setPusherError] = useState(!pusherClient);
+    // Turn timer countdown (seconds remaining, null when not active)
+    const [turnSecondsLeft, setTurnSecondsLeft] = useState<number | null>(null);
+
     // IMPORTANT: Don't sort! Use the same order as the server for currentTurn to work correctly!
-    // The server's currentTurn index corresponds to the original players array order
     const activePlayers = useMemo(
         () => players.filter(p => !p.isSpectator),
         [players]
@@ -56,17 +62,26 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const winnerCalcInFlight = useRef(false);
     const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastSyncedPayloadRef = useRef<string>('');
+    const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const playImpactSound = () => {
+    // Helper: get a display name for a userId  
+    const getDisplayName = useCallback((uid: string, index?: number) => {
+        if (playerNames[uid]) return playerNames[uid];
+        if (index !== undefined) return `Player ${index + 1}`;
+        const idx = activePlayers.findIndex(p => p.userId === uid);
+        return idx >= 0 ? `Player ${idx + 1}` : uid.slice(0, 8);
+    }, [playerNames, activePlayers]);
+
+    const playImpactSound = useCallback(() => {
         if (isMuted) return;
         try {
             const audio = new Audio(IMPACT_SOUND_URL);
             audio.volume = 0.3;
-            audio.play().catch(e => console.error("Audio play failed:", e));
-        } catch (error) {
-            console.error("Audio error:", error);
+            audio.play().catch(() => { /* silent fail */ });
+        } catch {
+            // silent fail
         }
-    };
+    }, [isMuted]);
 
     const syncState = useCallback(async (state: GameState) => {
         const payload = JSON.stringify({
@@ -75,9 +90,8 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             userId
         });
         if (payload === lastSyncedPayloadRef.current) return;
-
         if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-        
+
         const timeout = setTimeout(async () => {
             try {
                 const res = await fetch(`/api/rooms/${roomId}/state`, {
@@ -85,7 +99,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     headers: { 'Content-Type': 'application/json' },
                     body: payload
                 });
-
                 if (!res.ok && process.env.NODE_ENV === 'development') {
                     const error = await res.json();
                     console.error('[SYNC STATE ERROR]', error);
@@ -97,7 +110,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 }
             }
         }, 1000);
-        
         syncTimeoutRef.current = timeout;
     }, [roomId, userId]);
 
@@ -114,7 +126,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         return { total: base + (stars * 3), base, stars };
     };
 
-        const calculateWinner = useCallback(async (finalState: GameState) => {
+    const calculateWinner = useCallback(async (finalState: GameState) => {
         const scores: { [userId: string]: number } = {};
         const totalPowerByPlayer: { [userId: string]: number } = {};
         const logs: string[] = [];
@@ -138,25 +150,20 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             });
 
             roleScores.forEach(({ playerId, char, total, base, stars }) => {
-                const playerName = activePlayers.find(p => p.userId === playerId)?.userId || playerId;
+                const name = getDisplayName(playerId);
                 if (!char) {
-                    logs.push(`  - ${playerName}: EMPTY SLOT`);
+                    logs.push(`  - ${name}: EMPTY SLOT`);
                     return;
                 }
-                logs.push(`  - ${playerName}: ${char.name} | Pwr ${base.toFixed(1)} + (${stars}*3) = ${total.toFixed(1)}`);
+                logs.push(`  - ${name}: ${char.name} | Pwr ${base.toFixed(1)} + (${stars}*3) = ${total.toFixed(1)}`);
             });
 
             const topScore = Math.max(...roleScores.map(r => r.total));
             const winners = roleScores.filter(r => r.total === topScore && r.total > 0);
-            winners.forEach((winner) => {
-                scores[winner.playerId] += 1;
-            });
+            winners.forEach((winner) => { scores[winner.playerId] += 1; });
 
             if (winners.length > 0) {
-                const winnerNames = winners
-                    .map(w => activePlayers.find(p => p.userId === w.playerId)?.userId || w.playerId)
-                    .join(', ');
-                logs.push(`  -> Role Winner${winners.length > 1 ? 's' : ''}: ${winnerNames}`);
+                logs.push(`  -> Role Winner${winners.length > 1 ? 's' : ''}: ${winners.map(w => getDisplayName(w.playerId)).join(', ')}`);
             } else {
                 logs.push('  -> No winner for this role');
             }
@@ -164,8 +171,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
         logs.push('FINAL ROLE SCOREBOARD:');
         playerIds.forEach((playerId) => {
-            const playerName = activePlayers.find(p => p.userId === playerId)?.userId || playerId;
-            logs.push(`  ${playerName}: ${scores[playerId]} role points | Total power ${totalPowerByPlayer[playerId].toFixed(1)}`);
+            logs.push(`  ${getDisplayName(playerId)}: ${scores[playerId]} role points | Total power ${totalPowerByPlayer[playerId].toFixed(1)}`);
         });
 
         const winnerId = [...playerIds].sort((a, b) => {
@@ -176,11 +182,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         const newState: GameState = {
             ...finalState,
             status: 'FINISHED',
-            results: {
-                winnerId,
-                scores,
-                logs
-            }
+            results: { winnerId, scores, logs }
         };
 
         setGameState(newState);
@@ -188,13 +190,50 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         await fetch(`/api/rooms/${roomId}/state`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'end',
-                data: newState,
-                userId: userId
-            })
+            body: JSON.stringify({ action: 'end', data: newState, userId })
         });
-    }, [roomId, activePlayers, userId]);
+    }, [roomId, getDisplayName, userId]);
+
+    // ---  Turn Timer ---
+    useEffect(() => {
+        if (turnTimerRef.current) clearInterval(turnTimerRef.current);
+
+        if (!isMyTurn || gameState?.status !== 'DRAFTING') {
+            setTurnSecondsLeft(null);
+            return;
+        }
+
+        const totalSeconds = Math.floor(TURN_TIMEOUT_MS / 1000);
+        setTurnSecondsLeft(totalSeconds);
+
+        turnTimerRef.current = setInterval(() => {
+            setTurnSecondsLeft(prev => {
+                if (prev === null || prev <= 1) {
+                    clearInterval(turnTimerRef.current!);
+                    return null;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        // Auto-pass turn after timeout
+        const autoPassTimer = setTimeout(() => {
+            if (!gameState) return;
+            const nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
+            const newState: GameState = {
+                ...gameState,
+                currentDraw: null,
+                currentTurn: nextTurn,
+            };
+            setGameState(newState);
+            syncState(newState);
+        }, TURN_TIMEOUT_MS);
+
+        return () => {
+            clearInterval(turnTimerRef.current!);
+            clearTimeout(autoPassTimer);
+        };
+    }, [isMyTurn, gameState?.status, gameState?.currentTurn]);
 
     useEffect(() => {
         async function init() {
@@ -207,20 +246,17 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                 const res = await fetch(`/api/rooms/${roomId}/state`);
                 const roomData = await res.json();
 
-                console.log('[GAME INIT] Room data:', roomData);
-
                 const hasGameState = roomData.gameState && Object.keys(roomData.gameState).length > 0;
 
                 if (hasGameState) {
-                    console.log('[GAME INIT] Loading existing game state');
                     const hydratedState: GameState = {
                         ...roomData.gameState,
                         status: roomData.gameState.status || 'SETUP',
-                        selectedUniverses: roomData.gameState.selectedUniverses || universes,                    };
+                        selectedUniverses: roomData.gameState.selectedUniverses || universes,
+                    };
                     setGameState(hydratedState);
                     setLoading(false);
                 } else if ((roomData.status === 'WAITING' || roomData.status === 'DRAFTING') && roomData.hostId === userId) {
-                    console.log('[GAME INIT] Initializing game as host');
                     const initialState: GameState = {
                         currentTurn: 0,
                         round: 1,
@@ -237,22 +273,19 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         initialState.skipsRemaining[p.userId] = INITIAL_SKIPS;
                     });
 
-                    console.log('[GAME INIT] Initial state:', initialState);
-
                     setGameState(initialState);
                     setLoading(false);
                     syncState(initialState);
                 } else {
-                    console.log('[GAME INIT] Waiting for valid game state');
                     const poll = setInterval(async () => {
                         const r = await fetch(`/api/rooms/${roomId}/state`);
                         const d = await r.json();
                         if (d.gameState && Object.keys(d.gameState).length > 0) {
-                            console.log('[GAME INIT] Game state loaded from host');
                             const hydratedState: GameState = {
                                 ...d.gameState,
                                 status: d.gameState.status || 'SETUP',
-                                selectedUniverses: d.gameState.selectedUniverses || universes,                            };
+                                selectedUniverses: d.gameState.selectedUniverses || universes,
+                            };
                             setGameState(hydratedState);
                             setLoading(false);
                             clearInterval(poll);
@@ -261,7 +294,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     return () => clearInterval(poll);
                 }
             } catch (error) {
-                console.error('[GAME INIT] Failed to initialize:', error);
+                if (process.env.NODE_ENV === 'development') {
+                    console.error('[GAME INIT] Failed to initialize:', error);
+                }
             }
         }
 
@@ -269,37 +304,18 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
         const channel = subscribeToRoom(roomId);
         channel?.bind('state-updated', (data: Partial<GameState>) => {
-            console.log("[GAME DEBUG] Pusher: state-updated", data);
             setGameState(prev => {
                 if (!prev) return data as GameState;
-                return {
-                    ...prev,
-                    ...data
-                } as GameState;
+                return { ...prev, ...data } as GameState;
             });
             setLoading(false);
         });
 
-        return () => {
-            unsubscribeFromRoom(roomId);
-        };
+        return () => { unsubscribeFromRoom(roomId); };
     }, [roomId, userId, activePlayers, syncState]);
 
     const drawCharacter = () => {
-        console.log('[DRAW] Checking conditions:', {
-            hasGameState: !!gameState,
-            isMyTurn,
-            hasCurrentDraw: !!gameState?.currentDraw,
-            poolLength: characterPool.length,
-            myPlayerIndex,
-            normUserId,
-            players: activePlayers.map(p => p.userId)
-        });
-        
-        if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || gameState.currentDraw || characterPool.length === 0) {
-            console.warn('[DRAW] Blocked - conditions not met');
-            return;
-        }
+        if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || gameState.currentDraw || characterPool.length === 0) return;
 
         const available = characterPool.filter(c => {
             if (!gameState.selectedUniverses.includes(c.animeUniverse)) return false;
@@ -312,26 +328,21 @@ export default function MultiplayerGame({ roomId, userId, players }: {
 
         const randomChar = available[Math.floor(Math.random() * available.length)];
         playImpactSound();
-        
-        // When you draw, it's STILL your turn - you need to place the card
-        // Don't advance turn on draw, only on place or skip
         const newState = { ...gameState, currentDraw: randomChar };
-        console.log('[DRAW] Drew character:', randomChar.name, '- Your turn to place!');
         setGameState(newState);
         syncState(newState);
     };
 
     const skipCard = () => {
         if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || !gameState.currentDraw) return;
-        
+
         const myKey = getNormalizedPlayerKey(Object.keys(gameState.playerTeams), userId);
         const skipsLeft = gameState.skipsRemaining[myKey] || 0;
-
         if (skipsLeft <= 0) return;
 
         const available = characterPool.filter(c => {
             if (!gameState.selectedUniverses.includes(c.animeUniverse)) return false;
-            if (c.id === gameState.currentDraw?.id) return false; // Redraw should be a different card.
+            if (c.id === gameState.currentDraw?.id) return false;
             return !Object.values(gameState.playerTeams).some(team =>
                 team.some(slot => slot?.id === c.id)
             );
@@ -350,27 +361,17 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             skipsRemaining: newSkips,
             status: 'DRAFTING'
         };
-
         setGameState(newState);
         syncState(newState);
     };
 
     const placeCharacter = (slotIndex: number) => {
-        if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || !gameState.currentDraw) {
-            console.warn('[PLACE CHAR] Rejected - gameState:', !!gameState, 'isMyTurn:', isMyTurn, 'hasDraw:', !!gameState?.currentDraw);
-            return;
-        }
-
-        console.log('[PLACE CHAR] Placing character at slot:', slotIndex, 'char:', gameState.currentDraw.name);
+        if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || !gameState.currentDraw) return;
 
         const newTeams = { ...gameState.playerTeams };
         const myKey = getNormalizedPlayerKey(Object.keys(newTeams), userId);
 
-        console.log('[PLACE CHAR] myKey:', myKey, 'normUserId:', normUserId, 'userId:', userId);
-
-        if (!newTeams[myKey]) {
-            newTeams[myKey] = [null, null, null, null, null];
-        }
+        if (!newTeams[myKey]) newTeams[myKey] = [null, null, null, null, null];
 
         const myTeam = [...newTeams[myKey]];
         myTeam[slotIndex] = gameState.currentDraw;
@@ -380,7 +381,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         const totalPlaced = Object.values(newTeams).reduce((acc, team) =>
             acc + team.filter(slot => slot !== null).length, 0
         );
-
         const nextRound = gameState.round + (totalPlaced % activePlayers.length === 0 ? 1 : 0);
 
         const newState: GameState = {
@@ -391,8 +391,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             playerTeams: newTeams,
             status: nextRound > 5 ? 'FINISHED' : 'DRAFTING',
         };
-
-        console.log('[PLACE CHAR] New state:', { round: newState.round, turn: newState.currentTurn, status: newState.status });
 
         setGameState(newState);
         syncState(newState);
@@ -429,8 +427,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const startDraft = () => {
         if (!gameState || !isHost || gameState.status !== 'SETUP') return;
         const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
-        if (gameState.selectedUniverses.length === 0) return;
-        if (filteredCount < MIN_POOL_SIZE) return;
+        if (gameState.selectedUniverses.length === 0 || filteredCount < MIN_POOL_SIZE) return;
         const newState: GameState = {
             ...gameState,
             status: 'DRAFTING',
@@ -445,7 +442,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     const goToLobby = useCallback(async () => {
         if (leavingToLobby) return;
         setLeavingToLobby(true);
-
         if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
         unsubscribeFromRoom(roomId);
 
@@ -453,18 +449,13 @@ export default function MultiplayerGame({ roomId, userId, players }: {
             await fetch(`/api/rooms/${roomId}/state`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'leave',
-                    userId
-                })
+                body: JSON.stringify({ action: 'leave', userId })
             });
         } catch {
             // Best effort; navigation should still proceed.
         }
 
         router.push('/lobby');
-
-        // Fallback for occasional client-router stalls.
         setTimeout(() => {
             if (typeof window !== 'undefined' && window.location.pathname !== '/lobby') {
                 window.location.assign('/lobby');
@@ -475,7 +466,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
     useEffect(() => {
         if (!gameState || gameState.status !== 'FINISHED' || gameState.results || !isHost) return;
         if (winnerCalcInFlight.current) return;
-
         winnerCalcInFlight.current = true;
         calculateWinner(gameState).finally(() => {
             winnerCalcInFlight.current = false;
@@ -490,31 +480,26 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         );
     }
 
+    // --- SETUP SCREEN ---
     if (gameState.status === 'SETUP') {
         const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
         const canStartDraft = gameState.selectedUniverses.length > 0 && filteredCount >= MIN_POOL_SIZE;
 
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+                {pusherError && (
+                    <div className="fixed top-4 left-4 right-4 z-50 bg-yellow-500/20 border border-yellow-500/50 rounded-xl px-4 py-3 text-yellow-300 text-sm flex items-center justify-between">
+                        ⚠️ Real-time connection unavailable — game updates may be delayed
+                        <button onClick={() => setPusherError(false)} className="ml-4 text-yellow-400 hover:text-yellow-200 font-bold">✕</button>
+                    </div>
+                )}
                 <div className="w-full max-w-5xl bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl p-8">
                     <h1 className="text-4xl font-black text-white text-center mb-2">SETUP YOUR DECK</h1>
                     <p className="text-slate-400 text-center mb-8">Host chooses universes for this multiplayer draft pool.</p>
 
                     <div className="flex justify-center gap-4 mb-6">
-                        <button
-                            onClick={selectAllUniverses}
-                            disabled={!isHost}
-                            className="text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-blue-300 px-4 py-2 rounded"
-                        >
-                            Select All
-                        </button>
-                        <button
-                            onClick={deselectAllUniverses}
-                            disabled={!isHost}
-                            className="text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-red-300 px-4 py-2 rounded"
-                        >
-                            Deselect All
-                        </button>
+                        <button onClick={selectAllUniverses} disabled={!isHost} className="text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-blue-300 px-4 py-2 rounded">Select All</button>
+                        <button onClick={deselectAllUniverses} disabled={!isHost} className="text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-red-300 px-4 py-2 rounded">Deselect All</button>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10 max-h-[420px] overflow-y-auto pr-2">
@@ -562,24 +547,32 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         );
     }
 
+    // --- FINISHED SCREEN ---
     if (gameState.status === 'FINISHED') {
+        const winnerName = gameState.results?.winnerId ? getDisplayName(gameState.results.winnerId) : 'Unknown';
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
                 <div className="max-w-4xl w-full bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-8">
-                    <h1 className="text-4xl font-bold text-center mb-8 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
+                    <h1 className="text-4xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
                         Game Over!
                     </h1>
-                    
+                    {gameState.results && (
+                        <p className="text-center text-yellow-300 font-bold text-xl mb-8">
+                            👑 Winner: {winnerName}
+                        </p>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                         {Object.entries(gameState.playerTeams).map(([playerId, team]) => {
-                            const playerName = activePlayers.find(p => p.userId === playerId)?.userId || playerId;
+                            const playerIdx = activePlayers.findIndex(p => p.userId === playerId);
+                            const name = getDisplayName(playerId, playerIdx >= 0 ? playerIdx : undefined);
                             const score = gameState.results?.scores[playerId] || 0;
                             const isWinner = gameState.results?.winnerId === playerId;
 
                             return (
                                 <div key={playerId} className={`p-6 rounded-xl border-2 ${isWinner ? 'border-yellow-400 bg-yellow-400/10' : 'border-slate-600 bg-slate-700/30'}`}>
-                                    <h3 className={`text-xl font-bold mb-4 ${isWinner ? 'text-yellow-400' : 'text-white'}`}>
-                                        {playerName} {isWinner && '👑'}
+                                    <h3 className={`text-xl font-bold mb-1 ${isWinner ? 'text-yellow-400' : 'text-white'}`}>
+                                        {name} {isWinner && '👑'}
                                     </h3>
                                     <p className="text-2xl font-bold mb-4 text-center text-orange-400">{score} role points</p>
                                     <div className="grid grid-cols-5 gap-2 mb-4">
@@ -623,8 +616,23 @@ export default function MultiplayerGame({ roomId, userId, players }: {
         );
     }
 
+    // --- DRAFTING SCREEN ---
+    const turnSeconds = TURN_TIMEOUT_MS / 1000;
+    const timerPercent = turnSecondsLeft !== null ? (turnSecondsLeft / turnSeconds) * 100 : 100;
+    const activePlayerName = activePlayers[gameState.currentTurn]
+        ? getDisplayName(activePlayers[gameState.currentTurn].userId, gameState.currentTurn)
+        : `Player ${gameState.currentTurn + 1}`;
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex gap-4 p-4">
+            {/* Pusher warning banner */}
+            {pusherError && (
+                <div className="fixed top-4 left-4 right-4 z-50 bg-yellow-500/20 border border-yellow-500/50 rounded-xl px-4 py-3 text-yellow-300 text-sm flex items-center justify-between">
+                    ⚠️ Real-time connection unavailable — game updates may be delayed
+                    <button onClick={() => setPusherError(false)} className="ml-4 text-yellow-400 hover:text-yellow-200 font-bold">✕</button>
+                </div>
+            )}
+
             {/* Main Game Area */}
             <div className="flex-1 overflow-y-auto">
                 {/* Header */}
@@ -639,7 +647,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                             <div>
                                 <p className="text-gray-400 text-sm">Round {gameState.round}/5</p>
                                 <p className="text-white font-bold text-lg">
-                                    {isMyTurn ? "🟢 YOUR TURN!" : `⏳ Player ${gameState.currentTurn + 1}'s Turn`}
+                                    {isMyTurn ? '🟢 YOUR TURN!' : `⏳ ${activePlayerName}'s Turn`}
                                 </p>
                             </div>
                             <button
@@ -649,6 +657,24 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                 {isMuted ? '🔇 Unmute' : '🔊 Mute'}
                             </button>
                         </div>
+
+                        {/* Turn Timer Bar — shown when it's your turn */}
+                        {isMyTurn && turnSecondsLeft !== null && (
+                            <div className="mb-3">
+                                <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                    <span>Time remaining</span>
+                                    <span className={turnSecondsLeft <= 10 ? 'text-red-400 font-bold animate-pulse' : 'text-gray-300'}>
+                                        {turnSecondsLeft}s
+                                    </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-1000 ${timerPercent > 50 ? 'bg-green-500' : timerPercent > 25 ? 'bg-yellow-400' : 'bg-red-500'}`}
+                                        style={{ width: `${timerPercent}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {isMyTurn && (
                             <div className="flex gap-2">
@@ -662,15 +688,9 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                 )}
                                 {gameState.currentDraw && (
                                     <>
-                                        {/* Show drawn card in header */}
                                         <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg flex-1">
                                             <div className="relative w-16 h-20 rounded overflow-hidden flex-shrink-0">
-                                                <Image
-                                                    src={gameState.currentDraw.imageUrl}
-                                                    alt={gameState.currentDraw.name}
-                                                    fill
-                                                    className="object-cover"
-                                                />
+                                                <Image src={gameState.currentDraw.imageUrl} alt={gameState.currentDraw.name} fill className="object-cover" />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-yellow-400 font-bold text-sm truncate">{gameState.currentDraw.name}</p>
@@ -688,6 +708,20 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                 )}
                             </div>
                         )}
+
+                        {/* Spectator: show current draw if one exists */}
+                        {isSpectator && gameState.currentDraw && (
+                            <div className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg mt-2">
+                                <div className="relative w-12 h-16 rounded overflow-hidden flex-shrink-0">
+                                    <Image src={gameState.currentDraw.imageUrl} alt={gameState.currentDraw.name} fill className="object-cover" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-slate-400">Active Draw</p>
+                                    <p className="text-sm text-yellow-300 font-bold">{gameState.currentDraw.name}</p>
+                                    <p className="text-xs text-slate-400">{gameState.currentDraw.animeUniverse}</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -698,6 +732,7 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                         const team = gameState.playerTeams[myKey] || [];
                         const isActive = gameState.currentTurn === playerIdx;
                         const playerSkips = gameState.skipsRemaining[myKey] || INITIAL_SKIPS;
+                        const displayName = getDisplayName(player.userId, playerIdx);
 
                         return (
                             <div
@@ -706,21 +741,16 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                             >
                                 <div className="flex justify-between items-center mb-3">
                                     <h3 className="text-white font-bold">
-                                        Player {playerIdx + 1}
+                                        {displayName}
                                         {player.userId === userId && ' (You)'}
                                         {isActive && ' 🎯'}
                                     </h3>
-                                    <p className="text-sm text-gray-400">Skip: {playerSkips}/{INITIAL_SKIPS}</p>
+                                    <p className="text-sm text-gray-400">Redraw: {playerSkips}/{INITIAL_SKIPS}</p>
                                 </div>
                                 {isActive && gameState.currentDraw && (
                                     <div className="mb-3 flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2">
                                         <div className="relative w-12 h-16 rounded overflow-hidden flex-shrink-0">
-                                            <Image
-                                                src={gameState.currentDraw.imageUrl}
-                                                alt={gameState.currentDraw.name}
-                                                fill
-                                                className="object-cover"
-                                            />
+                                            <Image src={gameState.currentDraw.imageUrl} alt={gameState.currentDraw.name} fill className="object-cover" />
                                         </div>
                                         <div className="min-w-0">
                                             <p className="text-[10px] uppercase tracking-wide text-slate-400">Current Draw</p>
@@ -732,39 +762,29 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                                 <div className="grid grid-cols-5 gap-2">
                                     {ROLES.map((role, slotIdx) => {
                                         const char = team[slotIdx];
-                                        const canPlace = isMyTurn && gameState.currentDraw && !char;
-                                        
+                                        const canPlace = isMyTurn && !!gameState.currentDraw && !char && player.userId.toLowerCase().trim() === normUserId;
                                         const roleKey = ROLE_KEYS[slotIdx];
                                         const roleRating = char?.stats?.roleStats?.[roleKey] as number | undefined;
-                                        
+
                                         return (
                                             <div
                                                 key={slotIdx}
-                                                onClick={() => {
-                                                    if (canPlace) {
-                                                        placeCharacter(slotIdx);
-                                                    }
-                                                }}
-                                                className={`relative h-32 rounded-lg border-2 overflow-hidden transition-all cursor-pointer ${
-                                                    char ? 'border-blue-500' : 'border-dashed border-slate-600'
-                                                } ${canPlace ? 'hover:border-yellow-400 hover:shadow-lg hover:shadow-yellow-400/50' : ''}`}
+                                                onClick={() => { if (canPlace) placeCharacter(slotIdx); }}
+                                                className={`relative h-32 rounded-lg border-2 overflow-hidden transition-all cursor-pointer ${char ? 'border-blue-500' : 'border-dashed border-slate-600'} ${canPlace ? 'hover:border-yellow-400 hover:shadow-lg hover:shadow-yellow-400/50' : ''}`}
                                                 title={char?.name || role}
                                                 role="button"
                                                 tabIndex={canPlace ? 0 : -1}
                                             >
-                                                {/* Role Label at top */}
                                                 <div className="absolute top-1 right-1 z-10 flex flex-col items-end">
                                                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider px-1 bg-black/50 rounded">
                                                         {role.split(' ')[0]}
                                                     </span>
-                                                    {/* Star Rating */}
                                                     {char && roleRating && (
                                                         <div className="text-yellow-400 text-xs mt-0.5 bg-black/50 px-1 rounded">
                                                             {'*'.repeat(roleRating)}
                                                         </div>
                                                     )}
                                                 </div>
-                                                
                                                 {char ? (
                                                     <>
                                                         <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
@@ -786,11 +806,6 @@ export default function MultiplayerGame({ roomId, userId, players }: {
                     })}
                 </div>
             </div>
-
-            {/* REMOVED: Modal was blocking clicks on slots! Card shows in center area instead */}
-
         </div>
     );
 }
-
-
