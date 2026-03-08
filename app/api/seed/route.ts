@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
 
     try {
         if (type === 'jikan') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const results: any[] = [];
             let seriesToProcess: { name: string, id: number | null }[] = [];
 
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
                 const filePath = path.join(process.cwd(), 'scripts', 'static-characters.json');
                 const fileContent = fs.readFileSync(filePath, 'utf8');
                 const data = JSON.parse(fileContent);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const uniqueSeries = Array.from(new Set(data.map((c: any) => c.series))) as string[];
                 
                 seriesToProcess = uniqueSeries.map(s => ({
@@ -82,7 +84,9 @@ export async function GET(req: NextRequest) {
                 }
 
                 const json = await charRes.json();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const characters = json.data as any[];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const filtered = characters.filter((c: any) => c.favorites > MIN_FAVORITES || c.role === 'Main');
                 
                 for (const charData of filtered) {
@@ -119,6 +123,7 @@ export async function GET(req: NextRequest) {
         const batchSize = 100;
         for (let i = 0; i < data.length; i += batchSize) {
             const batch = data.slice(i, i + batchSize);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await Promise.all(batch.map((char: any) => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 return (prisma as any).staticCharacter.upsert({
@@ -153,6 +158,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ success: true, message: `Seeded ${count} stats.` });
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
         console.error('Seed Error:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
