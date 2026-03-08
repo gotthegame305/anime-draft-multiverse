@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import NavBar from "@/components/NavBar";
 import MobileNav from "@/components/MobileNav";
+import { seedOnBoot } from "@/lib/seedOnBoot";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -20,6 +21,8 @@ export const metadata: Metadata = {
   title: "Anime Draft Multiverse",
   description: "Assemble your dream team and battle across dimensions.",
 };
+
+seedOnBoot().catch(console.error);
 
 export default function RootLayout({
   children,
