@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
         for (let i = 0; i < data.length; i += batchSize) {
             const batch = data.slice(i, i + batchSize);
             
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await Promise.all(batch.map((char: any) => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 return (prisma as any).staticCharacter.upsert({

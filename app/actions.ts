@@ -5,14 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { simulateMatchup, RoleKey } from '@/lib/battleEngine'
 import { BASE_ROLES } from '@/lib/gameConfig'
 
-interface DbCharacter {
-    id: number;
-    name: string;
-    imageUrl: string;
-    animeUniverse: string;
-    stats: unknown;
-    roleRatings: unknown;
-}
+
 
 export interface RoleStats {
     captain: number;
@@ -59,6 +52,7 @@ export async function getCharacters(limit = 500) {
         })
 
         // Just map them, don't slice yet. Client will filter and shuffle.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mapped = characters.map((char: any) => {
             const apiStats = char.stats as { favorites: number } | null;
             const aiStats = char.roleRatings as RoleStats | null;
