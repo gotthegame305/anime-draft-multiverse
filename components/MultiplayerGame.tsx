@@ -200,7 +200,7 @@ export default function MultiplayerGame({
             clearInterval(turnTimerRef.current!);
             clearTimeout(autoPassTimer);
         };
-    }, [isMyTurn, gameState?.status, gameState?.currentTurn]);
+    }, [isMyTurn, gameState?.status, gameState?.currentTurn, activePlayers.length, gameState, syncState]);
 
     useEffect(() => {
         async function init() {

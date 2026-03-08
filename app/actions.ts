@@ -59,9 +59,9 @@ export async function getCharacters(limit = 500) {
         })
 
         // Just map them, don't slice yet. Client will filter and shuffle.
-        const mapped = characters.map((char: DbCharacter) => {
-            const apiStats = char.stats as { favorites: number };
-            const aiStats = char.roleRatings as any | null;
+        const mapped = characters.map((char: any) => {
+            const apiStats = char.stats as { favorites: number } | null;
+            const aiStats = char.roleRatings as RoleStats | null;
             const staticChar = statMap.get(char.name);
 
             // Use the authoritative static stats if available

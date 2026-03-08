@@ -42,14 +42,14 @@ export default function GamePage({ params }: { params: { roomId: string } }) {
                 const room = await res.json();
 
                 if (res.ok && room.players) {
-                    setPlayers(room.players.map((p: any) => ({
+                    setPlayers(room.players.map((p: { userId: string, isSpectator: boolean, joinedAt: string }) => ({
                         userId: p.userId,
                         isSpectator: p.isSpectator,
                         joinedAt: p.joinedAt
                     })));
 
                     const names: Record<string, string> = {};
-                    room.players.forEach((p: any, idx: number) => {
+                    room.players.forEach((p: { userId: string, user?: { username?: string, name?: string } }, idx: number) => {
                         const displayName = p.user?.username || p.user?.name || `Player ${idx + 1}`;
                         names[p.userId] = displayName;
                     });

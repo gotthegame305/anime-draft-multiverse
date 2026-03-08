@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import CharacterCard from './CharacterCard';
 import { getCharacters, submitMatch, CharacterItem } from '@/app/actions';
-import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
+import { BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
 
 const MAX_SKIPS = 1;
 

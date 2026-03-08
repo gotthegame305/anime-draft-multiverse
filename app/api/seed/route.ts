@@ -31,30 +31,30 @@ export async function GET(req: NextRequest) {
             const batch = data.slice(i, i + batchSize);
             
             await Promise.all(batch.map((char: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 return (prisma as any).staticCharacter.upsert({
-                    where: { name: char.name },
+                    where: { name: char.name as string },
                     update: {
-                        favorites: char.favorites,
-                        winRate: char.winRate,
-                        captain: char.captain,
-                        viceCaptain: char.viceCaptain,
-                        tank: char.tank,
-                        duelist: char.duelist,
-                        support: char.support,
-                        aura: char.aura,
-                        traitor: char.traitor,
+                        favorites: char.favorites as number,
+                        winRate: char.winRate as number,
+                        viceCaptain: char.viceCaptain as number,
+                        tank: char.tank as number,
+                        duelist: char.duelist as number,
+                        support: char.support as number,
+                        aura: char.aura as number,
+                        traitor: char.traitor as number,
                     },
                     create: {
-                        name: char.name,
-                        favorites: char.favorites,
-                        winRate: char.winRate,
-                        captain: char.captain,
-                        viceCaptain: char.viceCaptain,
-                        tank: char.tank,
-                        duelist: char.duelist,
-                        support: char.support,
-                        aura: char.aura,
-                        traitor: char.traitor,
+                        name: char.name as string,
+                        favorites: char.favorites as number,
+                        winRate: char.winRate as number,
+                        captain: char.captain as number,
+                        viceCaptain: char.viceCaptain as number,
+                        tank: char.tank as number,
+                        duelist: char.duelist as number,
+                        support: char.support as number,
+                        aura: char.aura as number,
+                        traitor: char.traitor as number,
                     }
                 });
             }));
@@ -68,11 +68,12 @@ export async function GET(req: NextRequest) {
             message: `Successfully seeded ${count} characters.` 
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred during seeding';
         console.error('Seeding error:', error);
         return NextResponse.json({ 
             success: false, 
-            error: error.message || 'Unknown error occurred during seeding' 
+            error: errorMessage 
         }, { status: 500 });
     }
 }
