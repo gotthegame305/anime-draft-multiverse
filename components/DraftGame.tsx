@@ -74,354 +74,357 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setActiveRoles(roles);
         setBoard(new Array(roles.length).fill(null));
 
-        const filtered = initialCharacters.filter(c => selectedUniverses.includes(c.animeUniverse))
+        const filtered = initialCharacters.filter(c =>
+            selectedUniverses.includes(c.animeUniverse) &&
+            c.stats.roleStats.reason === "Verified Database Stats"
+        )
         const shuffled = [...filtered].sort(() => 0.5 - Math.random())
         setDeck(shuffled)
         setGameState('PLAYING')
     }
 
-    // Audio Helpers
-    const playImpactSound = () => {
-        if (isMuted) return
-        try {
-            const audio = new Audio(IMPACT_SOUND_URL)
-            audio.volume = 0.5
-            audio.play().catch(() => { /* silent fail */ })
-        } catch {
-            // silent fail
-        }
+// Audio Helpers
+const playImpactSound = () => {
+    if (isMuted) return
+    try {
+        const audio = new Audio(IMPACT_SOUND_URL)
+        audio.volume = 0.5
+        audio.play().catch(() => { /* silent fail */ })
+    } catch {
+        // silent fail
     }
+}
 
-    const announceCharacter = (text: string) => {
-        if (isMuted || !window.speechSynthesis) return
-        window.speechSynthesis.cancel()
-        const utterance = new SpeechSynthesisUtterance(text)
-        utterance.volume = 1.0
-        utterance.rate = 1.1
-        const voices = window.speechSynthesis.getVoices()
-        const jaVoice = voices.find(v => v.lang.includes('ja') || v.lang === 'ja-JP')
-        if (jaVoice) utterance.voice = jaVoice
-        window.speechSynthesis.speak(utterance)
+const announceCharacter = (text: string) => {
+    if (isMuted || !window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.volume = 1.0
+    utterance.rate = 1.1
+    const voices = window.speechSynthesis.getVoices()
+    const jaVoice = voices.find(v => v.lang.includes('ja') || v.lang === 'ja-JP')
+    if (jaVoice) utterance.voice = jaVoice
+    window.speechSynthesis.speak(utterance)
+}
+
+// Draw Card
+const drawCard = () => {
+    if (deck.length === 0) return
+    const newDeck = [...deck]
+    const drawn = newDeck.pop() || null
+    setDeck(newDeck)
+    setHand(drawn)
+    if (drawn) {
+        playImpactSound()
+        setTimeout(() => announceCharacter(drawn.name), 300)
     }
+}
 
-    // Draw Card
-    const drawCard = () => {
-        if (deck.length === 0) return
-        const newDeck = [...deck]
-        const drawn = newDeck.pop() || null
-        setDeck(newDeck)
-        setHand(drawn)
-        if (drawn) {
-            playImpactSound()
-            setTimeout(() => announceCharacter(drawn.name), 300)
-        }
+// Place Card
+const placeCharacter = (index: number) => {
+    if (!hand || board[index]) return
+    const newBoard = [...board]
+    newBoard[index] = hand
+    setBoard(newBoard)
+    setHand(null)
+    if (newBoard.every(slot => slot !== null)) {
+        generateOpponentAndScore(newBoard as CharacterItem[], deck)
     }
+}
 
-    // Place Card
-    const placeCharacter = (index: number) => {
-        if (!hand || board[index]) return
-        const newBoard = [...board]
-        newBoard[index] = hand
-        setBoard(newBoard)
+// Skip Card
+const skipCard = () => {
+    if (skips > 0 && hand) {
+        setSkips(prev => prev - 1)
         setHand(null)
-        if (newBoard.every(slot => slot !== null)) {
-            generateOpponentAndScore(newBoard as CharacterItem[], deck)
-        }
     }
+}
 
-    // Skip Card
-    const skipCard = () => {
-        if (skips > 0 && hand) {
-            setSkips(prev => prev - 1)
-            setHand(null)
-        }
+// Generate Opponent & Auto-Calculate Result
+const generateOpponentAndScore = async (playerBoard: CharacterItem[], remainingDeck: CharacterItem[]) => {
+    const targetLen = playerBoard.length;
+    let opponentDeck = [...remainingDeck]
+    if (opponentDeck.length < targetLen) {
+        const usedIds = new Set(playerBoard.map(c => c.id))
+        opponentDeck = initialCharacters.filter(c => !usedIds.has(c.id)).sort(() => 0.5 - Math.random())
     }
+    const opponent = opponentDeck.slice(0, targetLen)
+    setOpponentTeam(opponent)
+    setGameState('RESULT')
 
-    // Generate Opponent & Auto-Calculate Result
-    const generateOpponentAndScore = async (playerBoard: CharacterItem[], remainingDeck: CharacterItem[]) => {
-        const targetLen = playerBoard.length;
-        let opponentDeck = [...remainingDeck]
-        if (opponentDeck.length < targetLen) {
-            const usedIds = new Set(playerBoard.map(c => c.id))
-            opponentDeck = initialCharacters.filter(c => !usedIds.has(c.id)).sort(() => 0.5 - Math.random())
-        }
-        const opponent = opponentDeck.slice(0, targetLen)
-        setOpponentTeam(opponent)
-        setGameState('RESULT')
+    // Auto-calculate winner — no self-reporting
+    setIsSubmitting(true)
+    const result = await submitMatch(userId ?? null, playerBoard, opponent, activeRoles)
+    setMatchResult(result)
+    setIsSubmitting(false)
+}
 
-        // Auto-calculate winner — no self-reporting
-        setIsSubmitting(true)
-        const result = await submitMatch(userId ?? null, playerBoard, opponent, activeRoles)
-        setMatchResult(result)
-        setIsSubmitting(false)
-    }
+const resetGame = () => {
+    setGameState('FILTER')
+    setBoard(new Array(activeRoles.length).fill(null))
+    setHand(null)
+    setSkips(INITIAL_SKIPS)
+    setMatchResult(null)
+    setOpponentTeam([])
+}
 
-    const resetGame = () => {
-        setGameState('FILTER')
-        setBoard(new Array(activeRoles.length).fill(null))
-        setHand(null)
-        setSkips(INITIAL_SKIPS)
-        setMatchResult(null)
-        setOpponentTeam([])
-    }
+// --- RENDER ---
 
-    // --- RENDER ---
-
-    if (gameState === 'FILTER') {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-950 text-white">
-                <div className="bg-gray-900 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-gray-800">
-                    <h1 className="text-3xl font-bold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-                        Multiverse Draft
-                    </h1>
-                    <p className="mb-4 text-gray-400 text-center">Select active universes:</p>
-                    <div className="space-y-3 max-h-60 overflow-y-auto mb-6 pr-2 scrollbar-thin scrollbar-thumb-gray-700">
-                        {universes.map(u => (
-                            <label key={u} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-800 transition cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedUniverses.includes(u)}
-                                    onChange={(e) => {
-                                        if (e.target.checked) setSelectedUniverses(prev => [...prev, u])
-                                        else setSelectedUniverses(prev => prev.filter(x => x !== u))
-                                    }}
-                                    className="w-5 h-5 text-blue-500 rounded focus:ring-blue-500 bg-gray-700 border-gray-600"
-                                />
-                                <span className="text-lg">{u}</span>
-                            </label>
-                        ))}
-                    </div>
-                    <button
-                        onClick={startGame}
-                        disabled={selectedUniverses.length === 0}
-                        className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-xl hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
-                    >
-                        Start Draft
-                    </button>
+if (gameState === 'FILTER') {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-950 text-white">
+            <div className="bg-gray-900 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-gray-800">
+                <h1 className="text-3xl font-bold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
+                    Multiverse Draft
+                </h1>
+                <p className="mb-4 text-gray-400 text-center">Select active universes:</p>
+                <div className="space-y-3 max-h-60 overflow-y-auto mb-6 pr-2 scrollbar-thin scrollbar-thumb-gray-700">
+                    {universes.map(u => (
+                        <label key={u} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-800 transition cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={selectedUniverses.includes(u)}
+                                onChange={(e) => {
+                                    if (e.target.checked) setSelectedUniverses(prev => [...prev, u])
+                                    else setSelectedUniverses(prev => prev.filter(x => x !== u))
+                                }}
+                                className="w-5 h-5 text-blue-500 rounded focus:ring-blue-500 bg-gray-700 border-gray-600"
+                            />
+                            <span className="text-lg">{u}</span>
+                        </label>
+                    ))}
                 </div>
+                <button
+                    onClick={startGame}
+                    disabled={selectedUniverses.length === 0}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-xl hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-blue-500/25"
+                >
+                    Start Draft
+                </button>
             </div>
-        )
-    }
+        </div>
+    )
+}
 
-    if (gameState === 'RESULT') {
-        const isWin = matchResult?.isWin
-        return (
-            <div className="flex flex-col items-center justify-start min-h-screen p-4 bg-gray-950 text-white overflow-y-auto">
-                {/* Guest banner */}
-                {!userId && (
-                    <div className="w-full max-w-4xl mb-4 bg-yellow-500/10 border border-yellow-500/40 rounded-xl px-4 py-3 text-center text-yellow-300 text-sm">
-                        🎮 Playing as Guest — <a href="/auth/signin" className="underline font-bold hover:text-yellow-200">Log in</a> to save your score to the leaderboard
-                    </div>
-                )}
-
-                {/* Result header */}
-                {isSubmitting ? (
-                    <h1 className="text-4xl font-extrabold mb-4 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 animate-pulse">
-                        Calculating result...
-                    </h1>
-                ) : matchResult ? (
-                    <h1 className={`text-4xl font-extrabold mb-2 text-center text-transparent bg-clip-text bg-gradient-to-r ${isWin ? 'from-yellow-400 to-orange-400' : 'from-red-400 to-pink-500'}`}>
-                        {isWin ? '🏆 Victory!' : '💀 Defeat!'}
-                    </h1>
-                ) : null}
-                {matchResult && (
-                    <p className="text-gray-400 mb-6 text-center">
-                        Score: <span className={isWin ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>{matchResult.userScore}</span>
-                        {' — '}
-                        <span className="text-gray-300">CPU</span>: <span className="text-gray-400 font-bold">{matchResult.cpuScore}</span>
-                    </p>
-                )}
-
-                {/* Teams */}
-                <div className="grid grid-cols-2 gap-4 w-full max-w-4xl mb-6">
-                    {/* Player Team */}
-                    <div className="bg-gray-900/50 p-4 rounded-xl border border-blue-500/30">
-                        <h2 className="text-xl font-bold mb-4 text-blue-400 text-center">Your Team</h2>
-                        <div className="space-y-4">
-                            {board.map((char, i) => (
-                                <div key={i} className="flex items-center space-x-3 p-2 bg-gray-800 rounded-lg border border-gray-700">
-                                    <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-blue-500 flex-shrink-0">
-                                        {char?.imageUrl && <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm">{char?.name}</p>
-                                        <p className="text-xs text-gray-400">{ROLE_DISPLAY_NAMES[activeRoles[i]]}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Opponent Team */}
-                    <div className="bg-gray-900/50 p-4 rounded-xl border border-red-500/30">
-                        <h2 className="text-xl font-bold mb-4 text-red-400 text-center">Opponent Team</h2>
-                        <div className="space-y-4">
-                            {opponentTeam.map((char, i) => (
-                                <div key={i} className="flex items-center space-x-3 p-2 bg-gray-800 rounded-lg border border-gray-700">
-                                    <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-red-500 flex-shrink-0">
-                                        {char?.imageUrl ? (
-                                            <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full bg-gray-700" />
-                                        )}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm">{char?.name || 'Unknown'}</p>
-                                        <p className="text-xs text-gray-400">{ROLE_DISPLAY_NAMES[activeRoles[i]]}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+if (gameState === 'RESULT') {
+    const isWin = matchResult?.isWin
+    return (
+        <div className="flex flex-col items-center justify-start min-h-screen p-4 bg-gray-950 text-white overflow-y-auto">
+            {/* Guest banner */}
+            {!userId && (
+                <div className="w-full max-w-4xl mb-4 bg-yellow-500/10 border border-yellow-500/40 rounded-xl px-4 py-3 text-center text-yellow-300 text-sm">
+                    🎮 Playing as Guest — <a href="/auth/signin" className="underline font-bold hover:text-yellow-200">Log in</a> to save your score to the leaderboard
                 </div>
+            )}
 
-                {/* Battle Log */}
-                {matchResult?.logs && matchResult.logs.length > 0 && (
-                    <div className="w-full max-w-4xl mb-6 bg-black/40 border border-gray-700 rounded-xl p-4 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
-                        {matchResult.logs.map((log, i) => (
-                            <div
-                                key={i}
-                                className={`${log.includes('✅') ? 'text-green-400' : log.includes('❌') ? 'text-red-400' : log.includes('FINAL') ? 'text-yellow-300 font-bold' : 'text-slate-300'}`}
-                            >
-                                {log}
+            {/* Result header */}
+            {isSubmitting ? (
+                <h1 className="text-4xl font-extrabold mb-4 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 animate-pulse">
+                    Calculating result...
+                </h1>
+            ) : matchResult ? (
+                <h1 className={`text-4xl font-extrabold mb-2 text-center text-transparent bg-clip-text bg-gradient-to-r ${isWin ? 'from-yellow-400 to-orange-400' : 'from-red-400 to-pink-500'}`}>
+                    {isWin ? '🏆 Victory!' : '💀 Defeat!'}
+                </h1>
+            ) : null}
+            {matchResult && (
+                <p className="text-gray-400 mb-6 text-center">
+                    Score: <span className={isWin ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>{matchResult.userScore}</span>
+                    {' — '}
+                    <span className="text-gray-300">CPU</span>: <span className="text-gray-400 font-bold">{matchResult.cpuScore}</span>
+                </p>
+            )}
+
+            {/* Teams */}
+            <div className="grid grid-cols-2 gap-4 w-full max-w-4xl mb-6">
+                {/* Player Team */}
+                <div className="bg-gray-900/50 p-4 rounded-xl border border-blue-500/30">
+                    <h2 className="text-xl font-bold mb-4 text-blue-400 text-center">Your Team</h2>
+                    <div className="space-y-4">
+                        {board.map((char, i) => (
+                            <div key={i} className="flex items-center space-x-3 p-2 bg-gray-800 rounded-lg border border-gray-700">
+                                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-blue-500 flex-shrink-0">
+                                    {char?.imageUrl && <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm">{char?.name}</p>
+                                    <p className="text-xs text-gray-400">{ROLE_DISPLAY_NAMES[activeRoles[i]]}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
-                )}
+                </div>
 
-                {/* Play Again / Result summary */}
-                {matchResult && (
-                    <div className="text-center">
-                        {userId && (
-                            <p className="text-gray-500 text-sm mb-4">
-                                {isWin ? '✅ Win recorded to your profile!' : '📊 Loss recorded to your profile.'}
-                            </p>
-                        )}
-                        <button
-                            onClick={resetGame}
-                            className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-lg transition-all transform hover:scale-105 shadow-lg"
-                        >
-                            Play Again
-                        </button>
-                    </div>
-                )}
-            </div>
-        )
-    }
-
-    // PLAYING STATE
-    return (
-        <div className="flex flex-col h-[100dvh] bg-gray-950 text-white overflow-hidden relative">
-            {/* Background/Decoration */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-gray-950 to-gray-950 pointer-events-none" />
-
-            {/* Header */}
-            <header className="py-4 px-4 flex justify-between items-center z-10 bg-gray-900/80 backdrop-blur-sm sticky top-0 border-b border-gray-800">
-                <span className="font-bold text-lg text-gray-300">Anime Draft</span>
-
-                <div className="flex items-center space-x-4">
-                    {/* Mute Toggle */}
-                    <button
-                        onClick={() => setIsMuted(!isMuted)}
-                        className={`p-2 rounded-full transition-colors ${isMuted ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-green-400 hover:bg-gray-700'}`}
-                        title={isMuted ? "Unmute Audio" : "Mute Audio"}
-                    >
-                        {isMuted ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                        ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.983 5.983 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                        )}
-                    </button>
-
-                    <div className="flex items-center space-x-2 bg-gray-800 px-3 py-1 rounded-full border border-gray-700">
-                        <span className="text-xs uppercase tracking-wider text-gray-400">Skips</span>
-                        <span className={`font-mono font-bold ${skips > 0 ? 'text-green-400' : 'text-red-500'}`}>{skips}</span>
+                {/* Opponent Team */}
+                <div className="bg-gray-900/50 p-4 rounded-xl border border-red-500/30">
+                    <h2 className="text-xl font-bold mb-4 text-red-400 text-center">Opponent Team</h2>
+                    <div className="space-y-4">
+                        {opponentTeam.map((char, i) => (
+                            <div key={i} className="flex items-center space-x-3 p-2 bg-gray-800 rounded-lg border border-gray-700">
+                                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-red-500 flex-shrink-0">
+                                    {char?.imageUrl ? (
+                                        <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full bg-gray-700" />
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm">{char?.name || 'Unknown'}</p>
+                                    <p className="text-xs text-gray-400">{ROLE_DISPLAY_NAMES[activeRoles[i]]}</p>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
-            </header>
+            </div>
 
-            {/* Main Content Area: Board + Controls */}
-            <main className="flex-1 flex flex-col items-center justify-between p-4 z-10 w-full max-w-lg mx-auto">
+            {/* Battle Log */}
+            {matchResult?.logs && matchResult.logs.length > 0 && (
+                <div className="w-full max-w-4xl mb-6 bg-black/40 border border-gray-700 rounded-xl p-4 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
+                    {matchResult.logs.map((log, i) => (
+                        <div
+                            key={i}
+                            className={`${log.includes('✅') ? 'text-green-400' : log.includes('❌') ? 'text-red-400' : log.includes('FINAL') ? 'text-yellow-300 font-bold' : 'text-slate-300'}`}
+                        >
+                            {log}
+                        </div>
+                    ))}
+                </div>
+            )}
 
-                {/* The Board */}
-                <div className="w-full space-y-3 flex-1 overflow-y-auto my-4 no-scrollbar">
-                    {board.map((char, index) => (
-                        <button
-                            key={index}
-                            onClick={() => placeCharacter(index)}
-                            disabled={!hand || char !== null}
-                            className={`w-full relative h-20 sm:h-24 rounded-xl border transition-all duration-300 flex items-center px-4 space-x-4
+            {/* Play Again / Result summary */}
+            {matchResult && (
+                <div className="text-center">
+                    {userId && (
+                        <p className="text-gray-500 text-sm mb-4">
+                            {isWin ? '✅ Win recorded to your profile!' : '📊 Loss recorded to your profile.'}
+                        </p>
+                    )}
+                    <button
+                        onClick={resetGame}
+                        className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-lg transition-all transform hover:scale-105 shadow-lg"
+                    >
+                        Play Again
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// PLAYING STATE
+return (
+    <div className="flex flex-col h-[100dvh] bg-gray-950 text-white overflow-hidden relative">
+        {/* Background/Decoration */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-gray-950 to-gray-950 pointer-events-none" />
+
+        {/* Header */}
+        <header className="py-4 px-4 flex justify-between items-center z-10 bg-gray-900/80 backdrop-blur-sm sticky top-0 border-b border-gray-800">
+            <span className="font-bold text-lg text-gray-300">Anime Draft</span>
+
+            <div className="flex items-center space-x-4">
+                {/* Mute Toggle */}
+                <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className={`p-2 rounded-full transition-colors ${isMuted ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-green-400 hover:bg-gray-700'}`}
+                    title={isMuted ? "Unmute Audio" : "Mute Audio"}
+                >
+                    {isMuted ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.983 5.983 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                    )}
+                </button>
+
+                <div className="flex items-center space-x-2 bg-gray-800 px-3 py-1 rounded-full border border-gray-700">
+                    <span className="text-xs uppercase tracking-wider text-gray-400">Skips</span>
+                    <span className={`font-mono font-bold ${skips > 0 ? 'text-green-400' : 'text-red-500'}`}>{skips}</span>
+                </div>
+            </div>
+        </header>
+
+        {/* Main Content Area: Board + Controls */}
+        <main className="flex-1 flex flex-col items-center justify-between p-4 z-10 w-full max-w-lg mx-auto">
+
+            {/* The Board */}
+            <div className="w-full space-y-3 flex-1 overflow-y-auto my-4 no-scrollbar">
+                {board.map((char, index) => (
+                    <button
+                        key={index}
+                        onClick={() => placeCharacter(index)}
+                        disabled={!hand || char !== null}
+                        className={`w-full relative h-20 sm:h-24 rounded-xl border transition-all duration-300 flex items-center px-4 space-x-4
                  ${char
                                 ? 'bg-gray-800 border-gray-700 opacity-100'
                                 : hand
                                     ? 'bg-gray-900/50 border-blue-500/50 hover:bg-blue-900/20 hover:border-blue-400 cursor-pointer animate-pulse'
                                     : 'bg-gray-900/30 border-gray-800 cursor-default'}
                 `}
-                        >
-                            {/* Role Label */}
-                            <span className="absolute top-1 right-2 text-[10px] uppercase font-bold tracking-widest text-gray-500">
-                                {ROLE_DISPLAY_NAMES[activeRoles[index]]}
-                            </span>
+                    >
+                        {/* Role Label */}
+                        <span className="absolute top-1 right-2 text-[10px] uppercase font-bold tracking-widest text-gray-500">
+                            {ROLE_DISPLAY_NAMES[activeRoles[index]]}
+                        </span>
 
-                            {char ? (
-                                <>
-                                    <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500 flex-shrink-0 shadow-lg shadow-purple-500/20">
-                                        <Image src={char.imageUrl} alt={char.name} fill className="object-cover object-top" />
-                                    </div>
-                                    <div className="flex-col items-start text-left">
-                                        <p className="font-bold text-lg leading-tight">{char.name}</p>
-                                        <p className="text-xs text-blue-400">{char.animeUniverse}</p>
-                                    </div>
-                                </>
-                            ) : (
-                                <span className="text-gray-600 font-medium text-sm">Empty Slot</span>
-                            )}
-                        </button>
-                    ))}
-                </div>
+                        {char ? (
+                            <>
+                                <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500 flex-shrink-0 shadow-lg shadow-purple-500/20">
+                                    <Image src={char.imageUrl} alt={char.name} fill className="object-cover object-top" />
+                                </div>
+                                <div className="flex-col items-start text-left">
+                                    <p className="font-bold text-lg leading-tight">{char.name}</p>
+                                    <p className="text-xs text-blue-400">{char.animeUniverse}</p>
+                                </div>
+                            </>
+                        ) : (
+                            <span className="text-gray-600 font-medium text-sm">Empty Slot</span>
+                        )}
+                    </button>
+                ))}
+            </div>
 
-                {/* Hand / Draw Section */}
-                <div className="w-full h-64 flex items-center justify-center relative mb-4">
-                    {hand ? (
-                        <div className="relative w-48 h-full bg-gray-800 rounded-2xl border-2 border-blue-500 shadow-2xl shadow-blue-500/20 flex flex-col items-center overflow-hidden animate-in fade-in zoom-in duration-300 group">
-                            <div className="relative w-full h-full">
-                                <Image src={hand.imageUrl} alt={hand.name} fill className="object-cover object-top" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-900/40 to-transparent" />
-                            </div>
-                            <div className="absolute bottom-0 w-full p-4 text-center z-10">
-                                <h3 className="font-bold text-2xl leading-none mb-1 text-white text-shadow-sm">{hand.name}</h3>
-                                <p className="text-sm text-blue-300 font-medium">{hand.animeUniverse}</p>
-                            </div>
+            {/* Hand / Draw Section */}
+            <div className="w-full h-64 flex items-center justify-center relative mb-4">
+                {hand ? (
+                    <div className="relative w-48 h-full bg-gray-800 rounded-2xl border-2 border-blue-500 shadow-2xl shadow-blue-500/20 flex flex-col items-center overflow-hidden animate-in fade-in zoom-in duration-300 group">
+                        <div className="relative w-full h-full">
+                            <Image src={hand.imageUrl} alt={hand.name} fill className="object-cover object-top" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-900/40 to-transparent" />
                         </div>
-                    ) : (
-                        <button
-                            onClick={drawCard}
-                            className="group relative w-32 h-44 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl shadow-xl shadow-indigo-500/20 border-2 border-indigo-400/30 transform hover:-translate-y-2 transition-all duration-300 flex items-center justify-center"
-                        >
-                            <span className="font-bold text-white text-lg group-hover:scale-110 transition-transform">DRAW</span>
-                            <div className="absolute inset-0 border-2 border-white/10 rounded-xl m-1" />
-                        </button>
-                    )}
-                </div>
+                        <div className="absolute bottom-0 w-full p-4 text-center z-10">
+                            <h3 className="font-bold text-2xl leading-none mb-1 text-white text-shadow-sm">{hand.name}</h3>
+                            <p className="text-sm text-blue-300 font-medium">{hand.animeUniverse}</p>
+                        </div>
+                    </div>
+                ) : (
+                    <button
+                        onClick={drawCard}
+                        className="group relative w-32 h-44 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl shadow-xl shadow-indigo-500/20 border-2 border-indigo-400/30 transform hover:-translate-y-2 transition-all duration-300 flex items-center justify-center"
+                    >
+                        <span className="font-bold text-white text-lg group-hover:scale-110 transition-transform">DRAW</span>
+                        <div className="absolute inset-0 border-2 border-white/10 rounded-xl m-1" />
+                    </button>
+                )}
+            </div>
 
-                {/* Action Buttons (Skip) */}
-                <div className="w-full h-12 flex justify-center">
-                    {hand && skips > 0 && (
-                        <button
-                            onClick={skipCard}
-                            className="px-6 py-2 rounded-full bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-700 transition flex items-center space-x-2"
-                        >
-                            <span>SKIP</span>
-                            <span className="text-xs bg-red-950 px-2 py-0.5 rounded-full">{skips}</span>
-                        </button>
-                    )}
-                </div>
+            {/* Action Buttons (Skip) */}
+            <div className="w-full h-12 flex justify-center">
+                {hand && skips > 0 && (
+                    <button
+                        onClick={skipCard}
+                        className="px-6 py-2 rounded-full bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-700 transition flex items-center space-x-2"
+                    >
+                        <span>SKIP</span>
+                        <span className="text-xs bg-red-950 px-2 py-0.5 rounded-full">{skips}</span>
+                    </button>
+                )}
+            </div>
 
-            </main>
-        </div>
-    )
+        </main>
+    </div>
+)
 }
