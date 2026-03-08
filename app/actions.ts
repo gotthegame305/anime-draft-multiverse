@@ -43,7 +43,13 @@ export async function getCharacters(limit = 500) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const staticStats = await (prisma as any).staticCharacter?.findMany() || [];
         const statMap = new Map();
-        staticStats.forEach((s: Record<string, unknown>) => statMap.set(s.name, s));
+        staticStats.forEach((s: Record<string, unknown>) => {
+            const name = s.name as string;
+            statMap.set(name, s);
+            // Also index by last word only as fallback (e.g. "Luffy" matches "Monkey D. Luffy")
+            const lastName = name.split(' ').pop() || name;
+            if (!statMap.has(lastName)) statMap.set(lastName, s);
+        });
 
         // Fetch more characters to allow client-side filtering
         const characters = await prisma.character.findMany({
@@ -56,7 +62,18 @@ export async function getCharacters(limit = 500) {
         const mapped = characters.map((char: any) => {
             const apiStats = char.stats as { favorites: number } | null;
             const aiStats = char.roleRatings as RoleStats | null;
-            const staticChar = statMap.get(char.name);
+            // Normalize Jikan "Last, First" → "First Last" for matching
+            const normalizeName = (n: string) => {
+                if (n.includes(', ')) {
+                    const [last, first] = n.split(', ');
+                    return `${first} ${last}`.trim();
+                }
+                return n.trim();
+            };
+            const jikanFirstName = char.name.includes(', ') ? char.name.split(', ')[1] : char.name;
+            const staticChar = statMap.get(char.name)
+                || statMap.get(normalizeName(char.name))
+                || statMap.get(jikanFirstName);
 
             // Use the authoritative static stats if available
             let roleStats: RoleStats;
@@ -110,8 +127,8 @@ export async function getCharacters(limit = 500) {
 
 // userId is null for guests — they play but their results are not recorded
 export async function submitMatch(
-    userId: string | null, 
-    userTeam: (CharacterItem | null)[], 
+    userId: string | null,
+    userTeam: (CharacterItem | null)[],
     cpuTeam: (CharacterItem | null)[],
     rolesPlayed: RoleKey[] = [...BASE_ROLES]
 ) {
