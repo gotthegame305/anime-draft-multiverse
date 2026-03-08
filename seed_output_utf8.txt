@@ -1,0 +1,1314 @@
+﻿Reading Excel file from: C:\Users\carlm\Downloads\pre gen ai anime stats guessing game.xlsx
+Found 962 rows in the Excel file.
+node.exe : Failed to 
+upsert character A 
+(Fourth Raikage): Prism
+aClientInitializationEr
+ror: 
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Users\carlm\AppData
+\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Failed to ups   
+ er...lizationError    
+: :String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character A (Third 
+Raikage): PrismaClientI
+nitializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+Processed 0 characters...
+}
+Failed to upsert 
+character Aaroniero 
+Arruruerie: PrismaClien
+tInitializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Processed 0 characters...
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Failed to upsert 
+character Aayla 
+Secura: PrismaClientIni
+tializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Abigail 
+Williams: PrismaClientI
+nitializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Achilles: Pri
+smaClientInitialization
+Error: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Adam 
+Warlock: PrismaClientIn
+itializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Admiral 
+Ackbar: PrismaClientIni
+tializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Admiral 
+Holdo: PrismaClientInit
+ializationError: 
+Processed 0 characters...
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Failed to upsert 
+character Agito: Prisma
+ClientInitializationErr
+or: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Ahsoka Tano: 
+PrismaClientInitializat
+ionError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Akainu: Prism
+aClientInitializationEr
+ror: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Akari Nitta: 
+PrismaClientInitializat
+ionError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Akatsuchi: Pr
+ismaClientInitializatio
+nError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Alfred 
+Pennyworth: PrismaClien
+tInitializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Alluka 
+Zoldyck: PrismaClientIn
+itializationError: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...
+Failed to upsert 
+character Altera: Prism
+aClientInitializationEr
+ror: 
+Invalid `prisma.staticC
+haracter.upsert()` 
+invocation in
+C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:42
+
+  55 const traitor = 
+Number(row['Traitor']) 
+|| 1;
+  56 
+  57 try {
+ΓåÆ 58     await prisma
+.staticCharacter.upsert
+(
+Can't reach database 
+server at 
+`db.prisma.io:5432`
+
+Please make sure your 
+database server is 
+running at 
+`db.prisma.io:5432`.
+    at 
+ei.handleRequestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+242:13)
+    at ei.handleAndLogR
+equestError 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+174:12)
+    at ei.request 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\RequestHandler.ts:
+143:12)
+    at async a 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\node_modules
+\@prisma\client\src\run
+time\getPrismaClient.ts
+:833:24)
+    at async main 
+(C:\Users\carlm\ALL 
+Projects made with 
+Antigravity\anime 
+guess game\scripts\seed
+-static-stats.ts:58:13)
+ {
+  clientVersion: 
+'6.19.2',
+  errorCode: undefined,
+  retryable: undefined
+}
+Processed 0 characters...

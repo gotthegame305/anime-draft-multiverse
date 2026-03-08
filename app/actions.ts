@@ -2,6 +2,8 @@
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { simulateMatchup, RoleKey } from '@/lib/battleEngine'
+import { BASE_ROLES } from '@/lib/gameConfig'
 
 interface DbCharacter {
     id: number;
@@ -18,6 +20,8 @@ export interface RoleStats {
     tank: number;
     duelist: number;
     support: number;
+    aura: number;
+    traitor: number;
     reason?: string;
 }
 
@@ -32,7 +36,6 @@ export interface CharacterItem {
     };
 }
 
-const ROLES_ORDER = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
 const CHARACTER_CACHE_TTL_MS = 60_000;
 const characterCache = new Map<number, { expiresAt: number; data: CharacterItem[] }>();
 
@@ -44,6 +47,11 @@ export async function getCharacters(limit = 500) {
             return cached.data;
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const staticStats = await (prisma as any).staticCharacter?.findMany() || [];
+        const statMap = new Map();
+        staticStats.forEach((s: Record<string, unknown>) => statMap.set(s.name, s));
+
         // Fetch more characters to allow client-side filtering
         const characters = await prisma.character.findMany({
             take: limit,
@@ -52,26 +60,46 @@ export async function getCharacters(limit = 500) {
 
         // Just map them, don't slice yet. Client will filter and shuffle.
         const mapped = characters.map((char: DbCharacter) => {
-            const stats = char.stats as { favorites: number };
+            const apiStats = char.stats as { favorites: number };
+            const aiStats = char.roleRatings as any | null;
+            const staticChar = statMap.get(char.name);
 
-            // Use stored AI ratings if available, otherwise random seed
-            const aiStats = char.roleRatings as RoleStats | null;
+            // Use the authoritative static stats if available
+            let roleStats: RoleStats;
+            let favorites = apiStats?.favorites || 0;
 
-            const seed = char.id + char.name.length;
-            const r = (n: number) => ((seed + n) % 5) + 1;
+            if (staticChar) {
+                favorites = staticChar.favorites > 0 ? staticChar.favorites : favorites;
+                roleStats = {
+                    captain: staticChar.captain,
+                    viceCaptain: staticChar.viceCaptain,
+                    tank: staticChar.tank,
+                    duelist: staticChar.duelist,
+                    support: staticChar.support,
+                    aura: staticChar.aura,
+                    traitor: staticChar.traitor,
+                    reason: "Verified Database Stats"
+                };
+            } else {
+                // Fallback: Random seed
+                const seed = char.id + char.name.length;
+                const r = (n: number) => ((seed + n) % 5) + 1;
 
-            const roleStats: RoleStats = aiStats || {
-                captain: r(0),
-                viceCaptain: r(1),
-                tank: r(2),
-                duelist: r(3),
-                support: r(4),
-            };
+                roleStats = aiStats || {
+                    captain: r(0),
+                    viceCaptain: r(1),
+                    tank: r(2),
+                    duelist: r(3),
+                    support: r(4),
+                    aura: r(5),
+                    traitor: r(6),
+                };
+            }
 
             return {
                 ...char,
                 stats: {
-                    favorites: stats.favorites,
+                    favorites,
                     roleStats
                 }
             };
@@ -87,53 +115,13 @@ export async function getCharacters(limit = 500) {
 }
 
 // userId is null for guests — they play but their results are not recorded
-export async function submitMatch(userId: string | null, userTeam: (CharacterItem | null)[], cpuTeam: (CharacterItem | null)[]) {
-    let userScore = 0;
-    let cpuScore = 0;
-    const logs: string[] = [];
-
-    const rolesDisplay = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'];
-
-    for (let i = 0; i < 5; i++) {
-        const role = ROLES_ORDER[i];
-        const roleName = rolesDisplay[i];
-
-        const userChar = userTeam[i];
-        const cpuChar = cpuTeam[i];
-
-        if (!userChar || !cpuChar) {
-            logs.push(`${roleName}: ROUND SKIPPED (Missing Character)`);
-            continue;
-        }
-
-        // Safe Access
-        const userRoleStats = userChar.stats?.roleStats || { captain: 1, viceCaptain: 1, tank: 1, duelist: 1, support: 1 };
-        const cpuRoleStats = cpuChar.stats?.roleStats || { captain: 1, viceCaptain: 1, tank: 1, duelist: 1, support: 1 };
-
-        const userStars = userRoleStats[role] || 1;
-        const cpuStars = cpuRoleStats[role] || 1;
-
-        const userBase = Math.log(userChar.stats?.favorites || 100);
-        const userTotal = userBase + (userStars * 3);
-
-        const cpuBase = Math.log(cpuChar.stats?.favorites || 100);
-        const cpuTotal = cpuBase + (cpuStars * 3);
-
-        if (userTotal > cpuTotal) {
-            userScore++;
-            logs.push(`${roleName}: ✅ ${userChar.name} (Pwr: ${userTotal.toFixed(1)}) DEFEATS ❌ ${cpuChar.name} (Pwr: ${cpuTotal.toFixed(1)})`);
-            logs.push(`   > You: Pwr ${userBase.toFixed(1)} + (${userStars}⭐ * 3) = ${userTotal.toFixed(1)}`);
-            logs.push(`   > CPU: Pwr ${cpuBase.toFixed(1)} + (${cpuStars}⭐ * 3) = ${cpuTotal.toFixed(1)}`);
-        } else {
-            cpuScore++;
-            logs.push(`${roleName}: ❌ ${userChar.name} (Pwr: ${userTotal.toFixed(1)}) LOSES TO ✅ ${cpuChar.name} (Pwr: ${cpuTotal.toFixed(1)})`);
-            logs.push(`   > You: Pwr ${userBase.toFixed(1)} + (${userStars}⭐ * 3) = ${userTotal.toFixed(1)}`);
-            logs.push(`   > CPU: Pwr ${cpuBase.toFixed(1)} + (${cpuStars}⭐ * 3) = ${cpuTotal.toFixed(1)}`);
-        }
-    }
-
-    const isWin = userScore > cpuScore;
-    logs.push(isWin ? `FINAL SCORE: ${userScore}-${cpuScore} (VICTORY!)` : `FINAL SCORE: ${userScore}-${cpuScore} (DEFEAT!)`);
+export async function submitMatch(
+    userId: string | null, 
+    userTeam: (CharacterItem | null)[], 
+    cpuTeam: (CharacterItem | null)[],
+    rolesPlayed: RoleKey[] = [...BASE_ROLES]
+) {
+    const { isWin, userScore, cpuScore, logs } = simulateMatchup(userTeam, cpuTeam, rolesPlayed, "You", "CPU");
 
     // Only persist stats for authenticated (logged-in) users — guests play without being recorded
     if (userId) {

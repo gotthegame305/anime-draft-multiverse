@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import CharacterCard from './CharacterCard';
-import { getCharacters, submitMatch, CharacterItem, RoleStats } from '@/app/actions';
+import { getCharacters, submitMatch, CharacterItem } from '@/app/actions';
+import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
 
-const ROLES = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'];
-const ROLES_KEY: (keyof RoleStats)[] = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'];
 const MAX_SKIPS = 1;
 
 export default function DraftGrid() {
@@ -18,9 +17,13 @@ export default function DraftGrid() {
     const [availableUniverses, setAvailableUniverses] = useState<string[]>([]);
     const [selectedUniverses, setSelectedUniverses] = useState<string[]>([]);
 
-    // Using Array(5).fill(null) to ensure fixed slots
+    // Dynamic Modes
+    const [playedModes, setPlayedModes] = useState<string[]>([]);
+    const [activeRoles, setActiveRoles] = useState<RoleKey[]>([...BASE_ROLES]);
+
     const [userTeam, setUserTeam] = useState<(CharacterItem | null)[]>([null, null, null, null, null]);
     const [cpuTeam, setCpuTeam] = useState<(CharacterItem | null)[]>([null, null, null, null, null]);
+
 
     const [isUserTurn, setIsUserTurn] = useState(true);
     const [currentDraw, setCurrentDraw] = useState<CharacterItem | null>(null);
@@ -169,6 +172,38 @@ export default function DraftGrid() {
             return;
         }
 
+        let modeToPlay = 'standard';
+        let modifier: 'aura' | 'traitor' | null = null;
+        const isRematch = playedModes.length > 0;
+
+        if (!isRematch) {
+            const roll = Math.random();
+            if (roll < 0.5) modeToPlay = 'standard';
+            else if (roll < 0.75) modeToPlay = 'aura';
+            else modeToPlay = 'traitor';
+        } else {
+            if (!playedModes.includes('aura') && !playedModes.includes('traitor')) {
+                modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
+            } else if (playedModes.includes('aura') && !playedModes.includes('traitor')) {
+                modeToPlay = 'traitor';
+            } else if (playedModes.includes('traitor') && !playedModes.includes('aura')) {
+                modeToPlay = 'aura';
+            } else {
+                modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
+            }
+        }
+
+        if (modeToPlay === 'aura') modifier = 'aura';
+        if (modeToPlay === 'traitor') modifier = 'traitor';
+
+        const roles = [...BASE_ROLES] as RoleKey[];
+        if (modifier) roles.push(modifier);
+
+        setPlayedModes(prev => [...prev, modeToPlay]);
+        setActiveRoles(roles);
+        setUserTeam(new Array(roles.length).fill(null));
+        setCpuTeam(new Array(roles.length).fill(null));
+
         setCharacterPool(shuffled);
         setGameStatus('DRAFTING');
     };
@@ -177,7 +212,7 @@ export default function DraftGrid() {
     const handleGameEnd = async () => {
         setGameStatus('GRADING');
         try {
-            const res = await submitMatch('user-123', userTeam, cpuTeam);
+            const res = await submitMatch('user-123', userTeam, cpuTeam, activeRoles);
             setResult(res);
             setGameStatus('FINISHED');
         } catch (e) {
@@ -269,11 +304,11 @@ export default function DraftGrid() {
                             `}
                         >
                             <div className="absolute top-1 right-2 flex flex-col items-end z-10">
-                                <span className="text-[10px] font-bold text-blue-500 tracking-widest">{ROLES[i]}</span>
+                                <span className="text-[10px] font-bold text-blue-500 tracking-widest">{ROLE_DISPLAY_NAMES[activeRoles[i]].toUpperCase()}</span>
                                 {/* SHOW STARS only AFTER placement */}
                                 {char && (
                                     <div className="text-yellow-400 text-xs font-mono">
-                                        {'⭐'.repeat((char.stats.roleStats[ROLES_KEY[i]] as number) || 1)}
+                                        {'⭐'.repeat((char.stats.roleStats[activeRoles[i]] as number) || 1)}
                                     </div>
                                 )}
                             </div>
@@ -377,10 +412,10 @@ export default function DraftGrid() {
                     {cpuTeam.map((char, i) => (
                         <div key={`cpu-slot-${i}`} className="h-28 w-full rounded-xl border border-red-500/30 bg-slate-900/50 flex items-center justify-center relative overflow-hidden">
                             <div className="absolute top-1 left-2 flex flex-col z-10">
-                                <span className="text-[10px] font-bold text-red-500 tracking-widest">{ROLES[i]}</span>
+                                <span className="text-[10px] font-bold text-red-500 tracking-widest">{ROLE_DISPLAY_NAMES[activeRoles[i]].toUpperCase()}</span>
                                 {char && (
                                     <div className="text-red-400 text-xs font-mono">
-                                        {'⭐'.repeat((char.stats?.roleStats?.[ROLES_KEY[i]] as number) || 1)}
+                                        {'⭐'.repeat((char.stats?.roleStats?.[activeRoles[i]] as number) || 1)}
                                     </div>
                                 )}
                             </div>

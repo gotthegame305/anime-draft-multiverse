@@ -81,6 +81,21 @@ model Character {
   roleRatings   Json? // Stores { captain: 5, vice: 4, tank: 2, ... reason: "..." }
 }
 
+model StaticCharacter {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  series      String
+  favorites   Int
+  winRate     Float
+  captain     Int
+  viceCaptain Int
+  tank        Int
+  duelist     Int
+  support     Int
+  aura        Int
+  traitor     Int
+}
+
 model Match {
   id          String   @id @default(uuid())
   playedAt    DateTime @default(now())

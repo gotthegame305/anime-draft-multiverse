@@ -1,24 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { submitMatch } from '@/app/actions'
+import { submitMatch, CharacterItem } from '@/app/actions'
 import Image from 'next/image'
-import { ROLES_DISPLAY, GAME_CONFIG } from '@/lib/gameConfig'
-
-interface Character {
-    id: number
-    name: string
-    imageUrl: string
-    animeUniverse: string
-    stats: Record<string, unknown>
-}
+import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig'
 
 interface DraftGameProps {
-    initialCharacters: Character[]
+    initialCharacters: CharacterItem[]
     userId?: string
 }
 
-const ROLES = ROLES_DISPLAY
 const INITIAL_SKIPS = GAME_CONFIG.initialSkips
 const IMPACT_SOUND_URL = GAME_CONFIG.impactSoundUrl
 
@@ -29,14 +20,18 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
     // Game State
     const [gameState, setGameState] = useState<'FILTER' | 'PLAYING' | 'RESULT'>('FILTER')
 
-    const [deck, setDeck] = useState<Character[]>([])
-    const [hand, setHand] = useState<Character | null>(null)
-    const [board, setBoard] = useState<(Character | null)[]>([null, null, null, null, null])
-    const [opponentTeam, setOpponentTeam] = useState<Character[]>([])
-    const [skips, setSkips] = useState(INITIAL_SKIPS)
+    const [deck, setDeck] = useState<CharacterItem[]>([])
+    const [hand, setHand] = useState<CharacterItem | null>(null)
+    const [board, setBoard] = useState<(CharacterItem | null)[]>([null, null, null, null, null])
+    const [opponentTeam, setOpponentTeam] = useState<CharacterItem[]>([])
+    const [skips, setSkips] = useState<number>(INITIAL_SKIPS)
     const [matchResult, setMatchResult] = useState<{ isWin: boolean; userScore: number; cpuScore: number; logs: string[] } | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isMuted, setIsMuted] = useState(false)
+
+    // Dynamic Modes
+    const [playedModes, setPlayedModes] = useState<string[]>([])
+    const [activeRoles, setActiveRoles] = useState<RoleKey[]>([...BASE_ROLES])
 
     // Initialize universes on load
     useEffect(() => {
@@ -45,8 +40,40 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setSelectedUniverses(uniqueUniverses)
     }, [initialCharacters])
 
-    // Start Game: Filter and Shuffle
+    // Start Game: Filter, Shuffle, and Pick Mode
     const startGame = () => {
+        let modeToPlay = 'standard';
+        let modifier: 'aura' | 'traitor' | null = null;
+        const isRematch = playedModes.length > 0;
+
+        if (!isRematch) {
+            // First game: 50% 5v5, 25% aura, 25% traitor
+            const roll = Math.random();
+            if (roll < 0.5) modeToPlay = 'standard';
+            else if (roll < 0.75) modeToPlay = 'aura';
+            else modeToPlay = 'traitor';
+        } else {
+            if (!playedModes.includes('aura') && !playedModes.includes('traitor')) {
+                modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
+            } else if (playedModes.includes('aura') && !playedModes.includes('traitor')) {
+                modeToPlay = 'traitor';
+            } else if (playedModes.includes('traitor') && !playedModes.includes('aura')) {
+                modeToPlay = 'aura';
+            } else {
+                modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
+            }
+        }
+
+        if (modeToPlay === 'aura') modifier = 'aura';
+        if (modeToPlay === 'traitor') modifier = 'traitor';
+
+        const roles = [...BASE_ROLES] as RoleKey[];
+        if (modifier) roles.push(modifier);
+
+        setPlayedModes(prev => [...prev, modeToPlay]);
+        setActiveRoles(roles);
+        setBoard(new Array(roles.length).fill(null));
+
         const filtered = initialCharacters.filter(c => selectedUniverses.includes(c.animeUniverse))
         const shuffled = [...filtered].sort(() => 0.5 - Math.random())
         setDeck(shuffled)
@@ -98,7 +125,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setBoard(newBoard)
         setHand(null)
         if (newBoard.every(slot => slot !== null)) {
-            generateOpponentAndScore(newBoard as Character[], deck)
+            generateOpponentAndScore(newBoard as CharacterItem[], deck)
         }
     }
 
@@ -111,26 +138,27 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
     }
 
     // Generate Opponent & Auto-Calculate Result
-    const generateOpponentAndScore = async (playerBoard: Character[], remainingDeck: Character[]) => {
+    const generateOpponentAndScore = async (playerBoard: CharacterItem[], remainingDeck: CharacterItem[]) => {
+        const targetLen = playerBoard.length;
         let opponentDeck = [...remainingDeck]
-        if (opponentDeck.length < 5) {
+        if (opponentDeck.length < targetLen) {
             const usedIds = new Set(playerBoard.map(c => c.id))
             opponentDeck = initialCharacters.filter(c => !usedIds.has(c.id)).sort(() => 0.5 - Math.random())
         }
-        const opponent = opponentDeck.slice(0, 5)
+        const opponent = opponentDeck.slice(0, targetLen)
         setOpponentTeam(opponent)
         setGameState('RESULT')
 
         // Auto-calculate winner — no self-reporting
         setIsSubmitting(true)
-        const result = await submitMatch(userId ?? null, playerBoard, opponent)
+        const result = await submitMatch(userId ?? null, playerBoard, opponent, activeRoles)
         setMatchResult(result)
         setIsSubmitting(false)
     }
 
     const resetGame = () => {
         setGameState('FILTER')
-        setBoard([null, null, null, null, null])
+        setBoard(new Array(activeRoles.length).fill(null))
         setHand(null)
         setSkips(INITIAL_SKIPS)
         setMatchResult(null)
@@ -217,7 +245,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                                     </div>
                                     <div>
                                         <p className="font-bold text-sm">{char?.name}</p>
-                                        <p className="text-xs text-gray-400">{ROLES[i]}</p>
+                                        <p className="text-xs text-gray-400">{ROLE_DISPLAY_NAMES[activeRoles[i]]}</p>
                                     </div>
                                 </div>
                             ))}
@@ -239,7 +267,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                                     </div>
                                     <div>
                                         <p className="font-bold text-sm">{char?.name || 'Unknown'}</p>
-                                        <p className="text-xs text-gray-400">{ROLES[i]}</p>
+                                        <p className="text-xs text-gray-400">{ROLE_DISPLAY_NAMES[activeRoles[i]]}</p>
                                     </div>
                                 </div>
                             ))}
@@ -336,7 +364,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                         >
                             {/* Role Label */}
                             <span className="absolute top-1 right-2 text-[10px] uppercase font-bold tracking-widest text-gray-500">
-                                {ROLES[index]}
+                                {ROLE_DISPLAY_NAMES[activeRoles[index]]}
                             </span>
 
                             {char ? (

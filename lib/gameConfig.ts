@@ -1,10 +1,20 @@
 // Central game configuration — import from here instead of defining locally in each component
 
-export const ROLES = ['CAPTAIN', 'VICE CAPTAIN', 'TANK', 'DUELIST', 'SUPPORT'] as const;
-export const ROLES_DISPLAY = ['Captain', 'Vice Captain', 'Tank', 'Duelist', 'Support'] as const;
-export const ROLE_KEYS = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
+export const BASE_ROLES = ['captain', 'viceCaptain', 'tank', 'duelist', 'support'] as const;
+export const MODIFIER_ROLES = ['aura', 'traitor'] as const;
+export const ROLE_KEYS = [...BASE_ROLES, ...MODIFIER_ROLES] as const;
 
 export type RoleKey = typeof ROLE_KEYS[number];
+
+export const ROLE_DISPLAY_NAMES: Record<RoleKey, string> = {
+    captain: 'Captain',
+    viceCaptain: 'Vice Captain',
+    tank: 'Tank',
+    duelist: 'Duelist',
+    support: 'Support',
+    aura: 'Aura',
+    traitor: 'Traitor'
+};
 
 export const GAME_CONFIG = {
     /** Number of skips/redraws each player starts with */

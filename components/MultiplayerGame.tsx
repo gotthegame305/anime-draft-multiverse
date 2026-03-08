@@ -5,7 +5,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { pusherClient, subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters, CharacterItem } from '@/app/actions';
-import { ROLES, ROLE_KEYS, GAME_CONFIG } from '@/lib/gameConfig';
+import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
+import { simulateMatchup } from '@/lib/battleEngine';
 
 const { initialSkips: INITIAL_SKIPS, minPoolSize: MIN_POOL_SIZE, turnTimeoutMs: TURN_TIMEOUT_MS, impactSoundUrl: IMPACT_SOUND_URL } = GAME_CONFIG;
 
@@ -17,6 +18,7 @@ interface GameState {
     currentDraw: CharacterItem | null;
     status: 'SETUP' | 'DRAFTING' | 'GRADING' | 'FINISHED';
     selectedUniverses: string[];
+    activeRoles?: RoleKey[];
     results?: {
         winnerId: string;
         scores: { [userId: string]: number };
@@ -118,66 +120,31 @@ export default function MultiplayerGame({
         return keys.find(k => k.toLowerCase().trim() === normTarget) || targetUserId;
     }, []);
 
-    const getRolePower = (char: CharacterItem | null, roleIndex: number) => {
-        if (!char) return { total: 0, base: 0, stars: 0 };
-        const roleKey = ROLE_KEYS[roleIndex];
-        const stars = Number(char.stats?.roleStats?.[roleKey]) || 1;
-        const base = Math.log(Number(char.stats?.favorites) || 100);
-        return { total: base + (stars * 3), base, stars };
-    };
-
     const calculateWinner = useCallback(async (finalState: GameState) => {
-        const scores: { [userId: string]: number } = {};
-        const totalPowerByPlayer: { [userId: string]: number } = {};
-        const logs: string[] = [];
         const playerIds = Object.keys(finalState.playerTeams);
-
-        playerIds.forEach((playerId) => {
-            scores[playerId] = 0;
-            totalPowerByPlayer[playerId] = 0;
-        });
-
-        for (let roleIndex = 0; roleIndex < ROLES.length; roleIndex++) {
-            const roleName = ROLES[roleIndex];
-            logs.push(`${roleName} ROUND:`);
-
-            const roleScores = playerIds.map((playerId) => {
-                const team = finalState.playerTeams[playerId] || [];
-                const char = team[roleIndex];
-                const { total, base, stars } = getRolePower(char || null, roleIndex);
-                totalPowerByPlayer[playerId] += total;
-                return { playerId, char, total, base, stars };
-            });
-
-            roleScores.forEach(({ playerId, char, total, base, stars }) => {
-                const name = getDisplayName(playerId);
-                if (!char) {
-                    logs.push(`  - ${name}: EMPTY SLOT`);
-                    return;
-                }
-                logs.push(`  - ${name}: ${char.name} | Pwr ${base.toFixed(1)} + (${stars}*3) = ${total.toFixed(1)}`);
-            });
-
-            const topScore = Math.max(...roleScores.map(r => r.total));
-            const winners = roleScores.filter(r => r.total === topScore && r.total > 0);
-            winners.forEach((winner) => { scores[winner.playerId] += 1; });
-
-            if (winners.length > 0) {
-                logs.push(`  -> Role Winner${winners.length > 1 ? 's' : ''}: ${winners.map(w => getDisplayName(w.playerId)).join(', ')}`);
-            } else {
-                logs.push('  -> No winner for this role');
-            }
+        // Fallback for unexpected >2 players, just get the first two.
+        const p1 = playerIds[0];
+        const p2 = playerIds[1];
+        
+        if (!p1 || !p2) {
+            // Edge case: Solo or bug
+            return;
         }
 
-        logs.push('FINAL ROLE SCOREBOARD:');
-        playerIds.forEach((playerId) => {
-            logs.push(`  ${getDisplayName(playerId)}: ${scores[playerId]} role points | Total power ${totalPowerByPlayer[playerId].toFixed(1)}`);
-        });
+        const teamA = finalState.playerTeams[p1];
+        const teamB = finalState.playerTeams[p2];
+        const nameA = getDisplayName(p1);
+        const nameB = getDisplayName(p2);
+        const roles = finalState.activeRoles || [...BASE_ROLES] as RoleKey[];
 
-        const winnerId = [...playerIds].sort((a, b) => {
-            if (scores[b] !== scores[a]) return scores[b] - scores[a];
-            return totalPowerByPlayer[b] - totalPowerByPlayer[a];
-        })[0];
+        const { userScore, cpuScore, logs } = simulateMatchup(teamA, teamB, roles, nameA, nameB);
+
+        const scores: { [userId: string]: number } = {
+            [p1]: userScore,
+            [p2]: cpuScore
+        };
+
+        const winnerId = userScore > cpuScore ? p1 : cpuScore > userScore ? p2 : p1; // p1 wins tiebreakers
 
         const newState: GameState = {
             ...finalState,
@@ -382,6 +349,7 @@ export default function MultiplayerGame({
             acc + team.filter(slot => slot !== null).length, 0
         );
         const nextRound = gameState.round + (totalPlaced % activePlayers.length === 0 ? 1 : 0);
+        const rolesTarget = gameState.activeRoles?.length || 5;
 
         const newState: GameState = {
             ...gameState,
@@ -389,7 +357,7 @@ export default function MultiplayerGame({
             currentTurn: nextTurn,
             round: nextRound,
             playerTeams: newTeams,
-            status: nextRound > 5 ? 'FINISHED' : 'DRAFTING',
+            status: nextRound > rolesTarget ? 'FINISHED' : 'DRAFTING',
         };
 
         setGameState(newState);
@@ -428,12 +396,34 @@ export default function MultiplayerGame({
         if (!gameState || !isHost || gameState.status !== 'SETUP') return;
         const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
         if (gameState.selectedUniverses.length === 0 || filteredCount < MIN_POOL_SIZE) return;
+
+        let modeToPlay = 'standard';
+        let modifier: 'aura' | 'traitor' | null = null;
+        
+        const roll = Math.random();
+        if (roll < 0.5) modeToPlay = 'standard';
+        else if (roll < 0.75) modeToPlay = 'aura';
+        else modeToPlay = 'traitor';
+
+        if (modeToPlay === 'aura') modifier = 'aura';
+        if (modeToPlay === 'traitor') modifier = 'traitor';
+
+        const roles = [...BASE_ROLES] as RoleKey[];
+        if (modifier) roles.push(modifier);
+
+        const newTeams = { ...gameState.playerTeams };
+        Object.keys(newTeams).forEach(k => {
+           newTeams[k] = new Array(roles.length).fill(null);
+        });
+
         const newState: GameState = {
             ...gameState,
             status: 'DRAFTING',
             currentTurn: 0,
             round: 1,
             currentDraw: null,
+            activeRoles: roles,
+            playerTeams: newTeams
         };
         setGameState(newState);
         syncState(newState);
@@ -582,7 +572,7 @@ export default function MultiplayerGame({
                                                     <>
                                                         <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
                                                         <div className="absolute top-1 right-1 bg-black/50 rounded px-1 text-[10px] text-yellow-300">
-                                                            {'*'.repeat(Number(char.stats?.roleStats?.[ROLE_KEYS[idx]]) || 1)}
+                                                            {'*'.repeat(Number(char.stats?.roleStats?.[gameState.activeRoles?.[idx] || BASE_ROLES[idx]]) || 1)}
                                                         </div>
                                                     </>
                                                 ) : (
@@ -759,11 +749,11 @@ export default function MultiplayerGame({
                                         </div>
                                     </div>
                                 )}
-                                <div className="grid grid-cols-5 gap-2">
-                                    {ROLES.map((role, slotIdx) => {
+                                <div className={`grid ${gameState.activeRoles?.length === 6 ? 'grid-cols-6' : 'grid-cols-5'} gap-2`}>
+                                    {(gameState.activeRoles || BASE_ROLES).map((roleKey, slotIdx) => {
+                                        const role = ROLE_DISPLAY_NAMES[roleKey];
                                         const char = team[slotIdx];
                                         const canPlace = isMyTurn && !!gameState.currentDraw && !char && player.userId.toLowerCase().trim() === normUserId;
-                                        const roleKey = ROLE_KEYS[slotIdx];
                                         const roleRating = char?.stats?.roleStats?.[roleKey] as number | undefined;
 
                                         return (
