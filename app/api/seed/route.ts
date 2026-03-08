@@ -29,6 +29,7 @@ const ANIME_MAPPING: Record<string, number[]> = {
 const COMIC_VINE_SERIES = ["Marvel Comics", "DC Comics", "Star Wars"];
 
 const MIN_FAVORITES = 50;
+const FATE_MIN_FAVORITES = 0; // Fate characters have low favorites on Jikan
 const JIKAN_DELAY = 1200;
 const COMIC_VINE_DELAY = 1000;
 
@@ -96,7 +97,8 @@ export async function GET(req: NextRequest) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const characters = json.data as any[];
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const filtered = characters.filter((c: any) => c.favorites > MIN_FAVORITES || c.role === 'Main');
+                const minFav = animeName === 'Fate' ? FATE_MIN_FAVORITES : MIN_FAVORITES;
+                const filtered = characters.filter((c: any) => c.favorites > minFav || c.role === 'Main');
                 for (const charData of filtered) {
                     const { character, favorites } = charData;
                     await prisma.character.upsert({
