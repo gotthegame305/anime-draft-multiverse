@@ -3,9 +3,22 @@ import prisma from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
 
+const ANIME_MAPPING: Record<string, number> = {
+    "Dragon Ball Z": 813,
+    "Naruto": 20,
+    "One Piece": 21,
+    "Jujutsu Kaisen": 40748,
+    "Bleach": 269,
+    "Hunter x Hunter": 11061,
+};
+
+const MIN_FAVORITES = 50;
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const secret = searchParams.get('secret');
+    const type = searchParams.get('type') || 'static';
+    const targetAnimeId = searchParams.get('animeId');
 
     // Simple security check
     if (secret !== 'anime123') {
@@ -13,6 +26,54 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+        if (type === 'jikan') {
+            const results: any[] = [];
+            const idsToSeed = targetAnimeId 
+                ? [parseInt(targetAnimeId)] 
+                : Object.values(ANIME_MAPPING);
+
+            for (const animeId of idsToSeed) {
+                const animeName = Object.keys(ANIME_MAPPING).find(key => ANIME_MAPPING[key] === animeId) || "Unknown Anime";
+                
+                console.log(`Fetching characters for ${animeName} (${animeId})...`);
+                const res = await fetch(`https://api.jikan.moe/v4/anime/${animeId}/characters`);
+                
+                if (!res.ok) {
+                    results.push({ animeId, success: false, error: `Jikan API error: ${res.statusText}` });
+                    continue;
+                }
+
+                const json = await res.json();
+                const characters = json.data as any[];
+                
+                const filtered = characters.filter((c: any) => c.favorites > MIN_FAVORITES);
+                
+                for (const charData of filtered) {
+                    const { character, favorites } = charData;
+                    await prisma.character.upsert({
+                        where: { id: character.mal_id },
+                        update: {
+                            name: character.name,
+                            imageUrl: character.images.jpg.image_url,
+                            animeUniverse: animeName,
+                            stats: { favorites },
+                        },
+                        create: {
+                            id: character.mal_id,
+                            name: character.name,
+                            imageUrl: character.images.jpg.image_url,
+                            animeUniverse: animeName,
+                            stats: { favorites },
+                        },
+                    });
+                }
+                
+                results.push({ animeName, animeId, count: filtered.length, success: true });
+            }
+
+            return NextResponse.json({ success: true, results });
+        }
+
         const filePath = path.join(process.cwd(), 'scripts', 'static-characters.json');
         
         if (!fs.existsSync(filePath)) {
