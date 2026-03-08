@@ -168,6 +168,15 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setOpponentTeam([])
     }
 
+    const handleRematch = () => {
+        setBoard(new Array(activeRoles.length).fill(null))
+        setHand(null)
+        setSkips(INITIAL_SKIPS)
+        setMatchResult(null)
+        setOpponentTeam([])
+        startGame()
+    }
+
     // --- RENDER ---
 
     if (gameState === 'FILTER') {
@@ -300,12 +309,20 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                                 {isWin ? '✅ Win recorded to your profile!' : '📊 Loss recorded to your profile.'}
                             </p>
                         )}
-                        <button
-                            onClick={resetGame}
-                            className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-lg transition-all transform hover:scale-105 shadow-lg"
-                        >
-                            Play Again
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                            <button
+                                onClick={handleRematch}
+                                className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-lg transition-all transform hover:scale-105 shadow-lg"
+                            >
+                                Rematch
+                            </button>
+                            <button
+                                onClick={resetGame}
+                                className="px-8 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-lg transition-all"
+                            >
+                                Change Universes
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

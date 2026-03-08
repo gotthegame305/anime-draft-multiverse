@@ -392,42 +392,61 @@ export default function MultiplayerGame({
         syncState(newState);
     };
 
-    const startDraft = () => {
-        if (!gameState || !isHost || gameState.status !== 'SETUP') return;
-        const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
-        if (gameState.selectedUniverses.length === 0 || filteredCount < MIN_POOL_SIZE) return;
-
-        let modeToPlay = 'standard';
-        let modifier: 'aura' | 'traitor' | null = null;
-        
+    const buildFreshDraftState = useCallback((baseState: GameState) => {
         const roll = Math.random();
-        if (roll < 0.5) modeToPlay = 'standard';
-        else if (roll < 0.75) modeToPlay = 'aura';
-        else modeToPlay = 'traitor';
+        let modifier: 'aura' | 'traitor' | null = null;
 
-        if (modeToPlay === 'aura') modifier = 'aura';
-        if (modeToPlay === 'traitor') modifier = 'traitor';
+        if (roll >= 0.5 && roll < 0.75) modifier = 'aura';
+        if (roll >= 0.75) modifier = 'traitor';
 
         const roles = [...BASE_ROLES] as RoleKey[];
         if (modifier) roles.push(modifier);
 
-        const newTeams = { ...gameState.playerTeams };
-        Object.keys(newTeams).forEach(k => {
-           newTeams[k] = new Array(roles.length).fill(null);
+        const freshTeams: GameState['playerTeams'] = {};
+        const freshSkips: GameState['skipsRemaining'] = {};
+
+        activePlayers.forEach((player) => {
+            freshTeams[player.userId] = new Array(roles.length).fill(null);
+            freshSkips[player.userId] = INITIAL_SKIPS;
         });
 
-        const newState: GameState = {
-            ...gameState,
-            status: 'DRAFTING',
+        return {
+            ...baseState,
+            status: 'DRAFTING' as const,
             currentTurn: 0,
             round: 1,
             currentDraw: null,
             activeRoles: roles,
-            playerTeams: newTeams
+            playerTeams: freshTeams,
+            skipsRemaining: freshSkips,
+            results: undefined,
         };
+    }, [activePlayers]);
+
+    const startDraft = () => {
+        if (!gameState || !isHost || gameState.status !== 'SETUP') return;
+        const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
+        if (gameState.selectedUniverses.length === 0 || filteredCount < MIN_POOL_SIZE) return;
+        const newState = buildFreshDraftState(gameState);
         setGameState(newState);
         syncState(newState);
     };
+
+    const handleRematch = useCallback(async () => {
+        if (!gameState || !isHost || gameState.status !== 'FINISHED') return;
+
+        const filteredCount = characterPool.filter(c => gameState.selectedUniverses.includes(c.animeUniverse)).length;
+        if (gameState.selectedUniverses.length === 0 || filteredCount < MIN_POOL_SIZE) return;
+
+        const rematchState = buildFreshDraftState(gameState);
+        setGameState(rematchState);
+
+        await fetch(`/api/rooms/${roomId}/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'rematch', data: rematchState, userId })
+        });
+    }, [buildFreshDraftState, characterPool, gameState, isHost, roomId, userId]);
 
     const goToLobby = useCallback(async () => {
         if (leavingToLobby) return;
@@ -601,6 +620,19 @@ export default function MultiplayerGame({
                     >
                         {leavingToLobby ? 'Leaving...' : 'Back to Lobby'}
                     </button>
+                    {isHost ? (
+                        <button
+                            onClick={() => { void handleRematch(); }}
+                            disabled={leavingToLobby}
+                            className="w-full mt-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-xl"
+                        >
+                            Start Rematch
+                        </button>
+                    ) : (
+                        <div className="w-full mt-3 bg-slate-700/50 border border-slate-600 text-slate-300 font-medium py-4 px-8 rounded-xl text-center">
+                            Waiting for host to start the rematch...
+                        </div>
+                    )}
                 </div>
             </div>
         );

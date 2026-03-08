@@ -80,7 +80,7 @@ export async function POST(
         }
 
         // Validate action
-        const validActions = ['start', 'updateState', 'end', 'leave'] as const;
+        const validActions = ['start', 'updateState', 'end', 'leave', 'rematch'] as const;
         if (!action || !validActions.includes(action)) {
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
@@ -168,6 +168,30 @@ export async function POST(
             });
 
             await triggerRoomEvent(params.roomId, 'game-ended', finalState);
+            return NextResponse.json(updatedRoom);
+        }
+
+        if (action === 'rematch') {
+            if (room.hostId !== userId) {
+                return NextResponse.json({ error: 'Only host can start a rematch' }, { status: 403 });
+            }
+
+            if (!data) {
+                return NextResponse.json({ error: 'Data required for rematch' }, { status: 400 });
+            }
+
+            const rematchState = JSON.parse(JSON.stringify(data));
+
+            const updatedRoom = await prisma.room.update({
+                where: { id: params.roomId },
+                data: {
+                    status: 'DRAFTING',
+                    startedAt: new Date(),
+                    gameState: rematchState
+                }
+            });
+
+            await triggerRoomEvent(params.roomId, 'state-updated', rematchState);
             return NextResponse.json(updatedRoom);
         }
 
