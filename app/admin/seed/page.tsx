@@ -7,18 +7,10 @@ export default function AdminSeedPage() {
     const [loading, setLoading] = useState(false);
 
     async function runSeed(type: 'static' | 'reset') {
-        const adminSecret = process.env.NEXT_PUBLIC_ADMIN_SECRET;
-        let secret = adminSecret;
-        
-        if (!secret) {
-            secret = prompt('Enter admin secret:') || '';
-        }
-
-        if (!secret) return;
-
         setLoading(true);
         setStatus('⏳ Running...');
         try {
+            const secret = process.env.NEXT_PUBLIC_ADMIN_SECRET || prompt('Enter admin secret:');
             const res = await fetch(`/api/admin/seed?type=${type}&secret=${secret}`);
             const data = await res.json();
             setStatus(data.message || JSON.stringify(data));
@@ -61,7 +53,7 @@ export default function AdminSeedPage() {
 
             <div className="mt-10 text-slate-500 text-sm">
                 <p><strong>Seed / Refresh</strong> — Upserts all characters from CSV. Safe to run anytime.</p>
-                <p><strong>Force Reset</strong> — Clears the table first, then re-seeds. Use when you've removed characters from the CSV.</p>
+                <p><strong>Force Reset</strong> — Clears the table first, then re-seeds. Use when you&apos;ve removed characters from the CSV.</p>
             </div>
         </div>
     );
