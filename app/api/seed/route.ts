@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
                 const characters = json.data as any[];
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const minFav = animeName === 'Fate' ? FATE_MIN_FAVORITES : MIN_FAVORITES;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const filtered = characters.filter((c: any) => c.favorites > minFav || c.role === 'Main');
                 for (const charData of filtered) {
                     const { character, favorites } = charData;
