@@ -120,6 +120,75 @@ export default function MultiplayerGame({
         return keys.find(k => k.toLowerCase().trim() === normTarget) || targetUserId;
     }, []);
 
+    const getAvailableCharacters = useCallback((state: GameState, excludeId?: number) => {
+        return characterPool.filter((character) => {
+            if (!state.selectedUniverses.includes(character.animeUniverse)) return false;
+            if (excludeId !== undefined && character.id === excludeId) return false;
+
+            return !Object.values(state.playerTeams).some((team) =>
+                team.some((slot) => slot?.id === character.id)
+            );
+        });
+    }, [characterPool]);
+
+    const getBestSlotIndex = useCallback((team: (CharacterItem | null)[], roles: RoleKey[], character: CharacterItem) => {
+        const emptySlots = team
+            .map((slot, index) => (slot === null ? index : -1))
+            .filter((index) => index !== -1);
+
+        if (emptySlots.length === 0) return -1;
+
+        emptySlots.sort((a, b) => {
+            const roleA = roles[a];
+            const roleB = roles[b];
+            const scoreA = Number(character.stats?.roleStats?.[roleA] || 0);
+            const scoreB = Number(character.stats?.roleStats?.[roleB] || 0);
+
+            if (scoreA !== scoreB) return scoreB - scoreA;
+            return a - b;
+        });
+
+        return emptySlots[0];
+    }, []);
+
+    const buildPlacedState = useCallback((
+        state: GameState,
+        targetUserId: string,
+        character: CharacterItem,
+        slotIndex: number
+    ) => {
+        const newTeams = { ...state.playerTeams };
+        const playerKey = getNormalizedPlayerKey(Object.keys(newTeams), targetUserId);
+        const roles = state.activeRoles || [...BASE_ROLES] as RoleKey[];
+
+        if (!newTeams[playerKey]) {
+            newTeams[playerKey] = new Array(roles.length).fill(null);
+        }
+
+        const updatedTeam = [...newTeams[playerKey]];
+        updatedTeam[slotIndex] = character;
+        newTeams[playerKey] = updatedTeam;
+
+        const totalPlaced = Object.values(newTeams).reduce((acc, team) =>
+            acc + team.filter((slot) => slot !== null).length, 0
+        );
+        const totalSlots = activePlayers.length * roles.length;
+        const isDraftComplete = totalPlaced >= totalSlots;
+        const completedRounds = Math.floor(totalPlaced / activePlayers.length);
+        const nextRound = isDraftComplete
+            ? roles.length
+            : Math.min(roles.length, completedRounds + 1);
+
+        return {
+            ...state,
+            currentDraw: null,
+            currentTurn: (state.currentTurn + 1) % activePlayers.length,
+            round: nextRound,
+            playerTeams: newTeams,
+            status: isDraftComplete ? 'FINISHED' as const : 'DRAFTING' as const,
+        };
+    }, [activePlayers.length, getNormalizedPlayerKey]);
+
     const calculateWinner = useCallback(async (finalState: GameState) => {
         const playerIds = Object.keys(finalState.playerTeams);
         // Fallback for unexpected >2 players, just get the first two.
@@ -183,24 +252,37 @@ export default function MultiplayerGame({
             });
         }, 1000);
 
-        // Auto-pass turn after timeout
-        const autoPassTimer = setTimeout(() => {
+        const autoPlaceTimer = setTimeout(() => {
             if (!gameState) return;
-            const nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
-            const newState: GameState = {
-                ...gameState,
-                currentDraw: null,
-                currentTurn: nextTurn,
-            };
+
+            const activePlayer = activePlayers[gameState.currentTurn];
+            if (!activePlayer) return;
+
+            const roles = gameState.activeRoles || [...BASE_ROLES] as RoleKey[];
+            const playerKey = getNormalizedPlayerKey(Object.keys(gameState.playerTeams), activePlayer.userId);
+            const playerTeam = gameState.playerTeams[playerKey] || new Array(roles.length).fill(null);
+            const timedOutCard = gameState.currentDraw
+                || getAvailableCharacters(gameState)[Math.floor(Math.random() * getAvailableCharacters(gameState).length)];
+
+            if (!timedOutCard) return;
+
+            const bestSlotIndex = getBestSlotIndex(playerTeam, roles, timedOutCard);
+            if (bestSlotIndex === -1) return;
+
+            const newState = buildPlacedState(gameState, activePlayer.userId, timedOutCard, bestSlotIndex);
             setGameState(newState);
             syncState(newState);
+
+            if (newState.status === 'FINISHED') {
+                void calculateWinner(newState);
+            }
         }, TURN_TIMEOUT_MS);
 
         return () => {
             clearInterval(turnTimerRef.current!);
-            clearTimeout(autoPassTimer);
+            clearTimeout(autoPlaceTimer);
         };
-    }, [isMyTurn, gameState?.status, gameState?.currentTurn, activePlayers.length, gameState, syncState]);
+    }, [isMyTurn, gameState?.status, gameState?.currentTurn, activePlayers, gameState, getAvailableCharacters, getBestSlotIndex, getNormalizedPlayerKey, buildPlacedState, syncState, calculateWinner]);
 
     useEffect(() => {
         async function init() {
@@ -284,12 +366,7 @@ export default function MultiplayerGame({
     const drawCharacter = () => {
         if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || gameState.currentDraw || characterPool.length === 0) return;
 
-        const available = characterPool.filter(c => {
-            if (!gameState.selectedUniverses.includes(c.animeUniverse)) return false;
-            return !Object.values(gameState.playerTeams).some(team =>
-                team.some(slot => slot?.id === c.id)
-            );
-        });
+        const available = getAvailableCharacters(gameState);
 
         if (available.length === 0) return;
 
@@ -307,13 +384,7 @@ export default function MultiplayerGame({
         const skipsLeft = gameState.skipsRemaining[myKey] || 0;
         if (skipsLeft <= 0) return;
 
-        const available = characterPool.filter(c => {
-            if (!gameState.selectedUniverses.includes(c.animeUniverse)) return false;
-            if (c.id === gameState.currentDraw?.id) return false;
-            return !Object.values(gameState.playerTeams).some(team =>
-                team.some(slot => slot?.id === c.id)
-            );
-        });
+        const available = getAvailableCharacters(gameState, gameState.currentDraw?.id);
 
         if (available.length === 0) return;
 
@@ -334,31 +405,7 @@ export default function MultiplayerGame({
 
     const placeCharacter = (slotIndex: number) => {
         if (!gameState || gameState.status !== 'DRAFTING' || !isMyTurn || !gameState.currentDraw) return;
-
-        const newTeams = { ...gameState.playerTeams };
-        const myKey = getNormalizedPlayerKey(Object.keys(newTeams), userId);
-
-        if (!newTeams[myKey]) newTeams[myKey] = [null, null, null, null, null];
-
-        const myTeam = [...newTeams[myKey]];
-        myTeam[slotIndex] = gameState.currentDraw;
-        newTeams[myKey] = myTeam;
-
-        const nextTurn = (gameState.currentTurn + 1) % activePlayers.length;
-        const totalPlaced = Object.values(newTeams).reduce((acc, team) =>
-            acc + team.filter(slot => slot !== null).length, 0
-        );
-        const nextRound = gameState.round + (totalPlaced % activePlayers.length === 0 ? 1 : 0);
-        const rolesTarget = gameState.activeRoles?.length || 5;
-
-        const newState: GameState = {
-            ...gameState,
-            currentDraw: null,
-            currentTurn: nextTurn,
-            round: nextRound,
-            playerTeams: newTeams,
-            status: nextRound > rolesTarget ? 'FINISHED' : 'DRAFTING',
-        };
+        const newState = buildPlacedState(gameState, userId, gameState.currentDraw, slotIndex);
 
         setGameState(newState);
         syncState(newState);
