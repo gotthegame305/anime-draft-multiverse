@@ -74,8 +74,8 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setActiveRoles(roles);
         setBoard(new Array(roles.length).fill(null));
 
-        const filtered = initialCharacters.filter(c =>
-            selectedUniverses.includes(c.animeUniverse) &&
+        const filtered = initialCharacters.filter(c => 
+            selectedUniverses.includes(c.animeUniverse) && 
             c.stats.roleStats.reason === "Verified Database Stats"
         )
         const shuffled = [...filtered].sort(() => 0.5 - Math.random())
@@ -364,67 +364,67 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                                     ? 'bg-gray-900/50 border-blue-500/50 hover:bg-blue-900/20 hover:border-blue-400 cursor-pointer animate-pulse'
                                     : 'bg-gray-900/30 border-gray-800 cursor-default'}
                 `}
-                    >
-                        {/* Role Label */}
-                        <span className="absolute top-1 right-2 text-[10px] uppercase font-bold tracking-widest text-gray-500">
-                            {ROLE_DISPLAY_NAMES[activeRoles[index]]}
-                        </span>
+                        >
+                            {/* Role Label */}
+                            <span className="absolute top-1 right-2 text-[10px] uppercase font-bold tracking-widest text-gray-500">
+                                {ROLE_DISPLAY_NAMES[activeRoles[index]]}
+                            </span>
 
-                        {char ? (
-                            <>
-                                <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500 flex-shrink-0 shadow-lg shadow-purple-500/20">
-                                    <Image src={char.imageUrl} alt={char.name} fill className="object-cover object-top" />
-                                </div>
-                                <div className="flex-col items-start text-left">
-                                    <p className="font-bold text-lg leading-tight">{char.name}</p>
-                                    <p className="text-xs text-blue-400">{char.animeUniverse}</p>
-                                </div>
-                            </>
-                        ) : (
-                            <span className="text-gray-600 font-medium text-sm">Empty Slot</span>
-                        )}
-                    </button>
-                ))}
-            </div>
+                            {char ? (
+                                <>
+                                    <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500 flex-shrink-0 shadow-lg shadow-purple-500/20">
+                                        <Image src={char.imageUrl} alt={char.name} fill className="object-cover object-top" />
+                                    </div>
+                                    <div className="flex-col items-start text-left">
+                                        <p className="font-bold text-lg leading-tight">{char.name}</p>
+                                        <p className="text-xs text-blue-400">{char.animeUniverse}</p>
+                                    </div>
+                                </>
+                            ) : (
+                                <span className="text-gray-600 font-medium text-sm">Empty Slot</span>
+                            )}
+                        </button>
+                    ))}
+                </div>
 
-            {/* Hand / Draw Section */}
-            <div className="w-full h-64 flex items-center justify-center relative mb-4">
-                {hand ? (
-                    <div className="relative w-48 h-full bg-gray-800 rounded-2xl border-2 border-blue-500 shadow-2xl shadow-blue-500/20 flex flex-col items-center overflow-hidden animate-in fade-in zoom-in duration-300 group">
-                        <div className="relative w-full h-full">
-                            <Image src={hand.imageUrl} alt={hand.name} fill className="object-cover object-top" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-900/40 to-transparent" />
+                {/* Hand / Draw Section */}
+                <div className="w-full h-64 flex items-center justify-center relative mb-4">
+                    {hand ? (
+                        <div className="relative w-48 h-full bg-gray-800 rounded-2xl border-2 border-blue-500 shadow-2xl shadow-blue-500/20 flex flex-col items-center overflow-hidden animate-in fade-in zoom-in duration-300 group">
+                            <div className="relative w-full h-full">
+                                <Image src={hand.imageUrl} alt={hand.name} fill className="object-cover object-top" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-900/40 to-transparent" />
+                            </div>
+                            <div className="absolute bottom-0 w-full p-4 text-center z-10">
+                                <h3 className="font-bold text-2xl leading-none mb-1 text-white text-shadow-sm">{hand.name}</h3>
+                                <p className="text-sm text-blue-300 font-medium">{hand.animeUniverse}</p>
+                            </div>
                         </div>
-                        <div className="absolute bottom-0 w-full p-4 text-center z-10">
-                            <h3 className="font-bold text-2xl leading-none mb-1 text-white text-shadow-sm">{hand.name}</h3>
-                            <p className="text-sm text-blue-300 font-medium">{hand.animeUniverse}</p>
-                        </div>
-                    </div>
-                ) : (
-                    <button
-                        onClick={drawCard}
-                        className="group relative w-32 h-44 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl shadow-xl shadow-indigo-500/20 border-2 border-indigo-400/30 transform hover:-translate-y-2 transition-all duration-300 flex items-center justify-center"
-                    >
-                        <span className="font-bold text-white text-lg group-hover:scale-110 transition-transform">DRAW</span>
-                        <div className="absolute inset-0 border-2 border-white/10 rounded-xl m-1" />
-                    </button>
-                )}
-            </div>
+                    ) : (
+                        <button
+                            onClick={drawCard}
+                            className="group relative w-32 h-44 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl shadow-xl shadow-indigo-500/20 border-2 border-indigo-400/30 transform hover:-translate-y-2 transition-all duration-300 flex items-center justify-center"
+                        >
+                            <span className="font-bold text-white text-lg group-hover:scale-110 transition-transform">DRAW</span>
+                            <div className="absolute inset-0 border-2 border-white/10 rounded-xl m-1" />
+                        </button>
+                    )}
+                </div>
 
-            {/* Action Buttons (Skip) */}
-            <div className="w-full h-12 flex justify-center">
-                {hand && skips > 0 && (
-                    <button
-                        onClick={skipCard}
-                        className="px-6 py-2 rounded-full bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-700 transition flex items-center space-x-2"
-                    >
-                        <span>SKIP</span>
-                        <span className="text-xs bg-red-950 px-2 py-0.5 rounded-full">{skips}</span>
-                    </button>
-                )}
-            </div>
+                {/* Action Buttons (Skip) */}
+                <div className="w-full h-12 flex justify-center">
+                    {hand && skips > 0 && (
+                        <button
+                            onClick={skipCard}
+                            className="px-6 py-2 rounded-full bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-700 transition flex items-center space-x-2"
+                        >
+                            <span>SKIP</span>
+                            <span className="text-xs bg-red-950 px-2 py-0.5 rounded-full">{skips}</span>
+                        </button>
+                    )}
+                </div>
 
-        </main>
-    </div>
-)
+            </main>
+        </div>
+    )
 }

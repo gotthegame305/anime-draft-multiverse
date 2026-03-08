@@ -164,7 +164,10 @@ export default function DraftGrid() {
         }
 
         // Filter and Shuffle Logic
-        const filtered = allCharacters.filter(c => selectedUniverses.includes(c.animeUniverse));
+        const filtered = allCharacters.filter(c => 
+            selectedUniverses.includes(c.animeUniverse) && 
+            c.stats.roleStats.reason === "Verified Database Stats"
+        );
         const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, 50); // Take top 50 shuffled
 
         if (shuffled.length < 10) {
@@ -420,9 +423,17 @@ export default function DraftGrid() {
                                 )}
                             </div>
                             {char ? (
-                                <div className="w-full h-full relative">
-                                    <Image src={char.imageUrl} alt="Enemy" fill className="object-cover grayscale opacity-50" />
-                                    <div className="absolute inset-0 bg-red-900/30" />
+                                <div className="w-full h-full relative group">
+                                    <Image src={char.imageUrl} alt={char.name} fill className="object-cover grayscale" />
+                                    <div className="absolute inset-0 bg-red-900/40 flex flex-col items-center justify-center pointer-events-none p-1">
+                                        <span className="text-white font-bold text-lg text-center drop-shadow-md leading-tight">{char.name}</span>
+                                        {/* Show AI Reason if available */}
+                                        {char.stats.roleStats.reason && (
+                                            <span className="text-[8px] text-yellow-200/80 text-center leading-none mt-1 max-w-full px-1">
+                                                &quot;{char.stats.roleStats.reason}&quot;
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             ) : (
                                 <span className="text-slate-700 text-xs">Waiting...</span>
