@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
 
     try {
         if (type === 'jikan') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const results: any[] = [];
             const idsToSeed = targetAnimeId 
                 ? [parseInt(targetAnimeId)] 
@@ -44,8 +45,10 @@ export async function GET(req: NextRequest) {
                 }
 
                 const json = await res.json();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const characters = json.data as any[];
                 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const filtered = characters.filter((c: any) => c.favorites > MIN_FAVORITES);
                 
                 for (const charData of filtered) {
