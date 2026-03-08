@@ -32,6 +32,52 @@ export interface CharacterItem {
 const CHARACTER_CACHE_TTL_MS = 60_000;
 const characterCache = new Map<number, { expiresAt: number; data: CharacterItem[] }>();
 
+function reorderCommaName(name: string) {
+    if (!name.includes(',')) return name.trim();
+
+    const [last, first] = name.split(',').map(part => part.trim());
+    if (!first) return name.trim();
+
+    return `${first} ${last}`.trim();
+}
+
+function toLookupKey(name: string) {
+    return name
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function foldRomanizedLongVowels(name: string) {
+    return name
+        .replace(/ou/g, 'o')
+        .replace(/oo/g, 'o')
+        .replace(/uu/g, 'u');
+}
+
+function getLookupKeys(name: string) {
+    const candidates = new Set<string>();
+    const trimmed = name.trim();
+    const reordered = reorderCommaName(trimmed);
+    const lastWord = reordered.split(' ').pop() || reordered;
+    const commaFirst = trimmed.includes(',') ? trimmed.split(',').slice(1).join(',').trim() : trimmed;
+
+    [trimmed, reordered, lastWord, commaFirst].forEach(candidate => {
+        if (!candidate) return;
+
+        const normalized = toLookupKey(candidate);
+        if (!normalized) return;
+
+        candidates.add(normalized);
+        candidates.add(foldRomanizedLongVowels(normalized));
+    });
+
+    return Array.from(candidates);
+}
+
 export async function getCharacters(limit = 500) {
     try {
         const now = Date.now();
@@ -45,10 +91,11 @@ export async function getCharacters(limit = 500) {
         const statMap = new Map();
         staticStats.forEach((s: Record<string, unknown>) => {
             const name = s.name as string;
-            statMap.set(name, s);
-            // Also index by last word only as fallback (e.g. "Luffy" matches "Monkey D. Luffy")
-            const lastName = name.split(' ').pop() || name;
-            if (!statMap.has(lastName)) statMap.set(lastName, s);
+            getLookupKeys(name).forEach((key) => {
+                if (!statMap.has(key)) {
+                    statMap.set(key, s);
+                }
+            });
         });
 
         // Fetch more characters to allow client-side filtering
@@ -63,17 +110,9 @@ export async function getCharacters(limit = 500) {
             const apiStats = char.stats as { favorites: number } | null;
             const aiStats = char.roleRatings as RoleStats | null;
             // Normalize Jikan "Last, First" → "First Last" for matching
-            const normalizeName = (n: string) => {
-                if (n.includes(', ')) {
-                    const [last, first] = n.split(', ');
-                    return `${first} ${last}`.trim();
-                }
-                return n.trim();
-            };
-            const jikanFirstName = char.name.includes(', ') ? char.name.split(', ')[1] : char.name;
-            const staticChar = statMap.get(char.name)
-                || statMap.get(normalizeName(char.name))
-                || statMap.get(jikanFirstName);
+            const staticChar = getLookupKeys(char.name)
+                .map((key) => statMap.get(key))
+                .find(Boolean);
 
             // Use the authoritative static stats if available
             let roleStats: RoleStats;

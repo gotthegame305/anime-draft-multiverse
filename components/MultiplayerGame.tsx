@@ -190,6 +190,11 @@ export default function MultiplayerGame({
     }, [activePlayers.length, getNormalizedPlayerKey]);
 
     const calculateWinner = useCallback(async (finalState: GameState) => {
+        if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = null;
+        }
+
         const playerIds = Object.keys(finalState.playerTeams);
         // Fallback for unexpected >2 players, just get the first two.
         const p1 = playerIds[0];
@@ -271,10 +276,11 @@ export default function MultiplayerGame({
 
             const newState = buildPlacedState(gameState, activePlayer.userId, timedOutCard, bestSlotIndex);
             setGameState(newState);
-            syncState(newState);
 
             if (newState.status === 'FINISHED') {
                 void calculateWinner(newState);
+            } else {
+                syncState(newState);
             }
         }, TURN_TIMEOUT_MS);
 
@@ -355,8 +361,16 @@ export default function MultiplayerGame({
         channel?.bind('state-updated', (data: Partial<GameState>) => {
             setGameState(prev => {
                 if (!prev) return data as GameState;
+                if (data.status === 'FINISHED' && data.results === undefined && prev.results) {
+                    return { ...prev, ...data, results: prev.results } as GameState;
+                }
                 return { ...prev, ...data } as GameState;
             });
+            setLoading(false);
+        });
+
+        channel?.bind('game-ended', (data: GameState) => {
+            setGameState(data);
             setLoading(false);
         });
 
@@ -408,10 +422,11 @@ export default function MultiplayerGame({
         const newState = buildPlacedState(gameState, userId, gameState.currentDraw, slotIndex);
 
         setGameState(newState);
-        syncState(newState);
 
         if (newState.status === 'FINISHED') {
-            calculateWinner(newState);
+            void calculateWinner(newState);
+        } else {
+            syncState(newState);
         }
     };
 
