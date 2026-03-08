@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LobbyPage() {
@@ -9,6 +9,8 @@ export default function LobbyPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [userId, setUserId] = useState<string | null>(null);
+    const [inviteHandled, setInviteHandled] = useState(false);
+    const [inviteCode, setInviteCode] = useState('');
 
     useEffect(() => {
         // Get or create anonymous user ID for consistent identification
@@ -18,7 +20,38 @@ export default function LobbyPage() {
             localStorage.setItem('anonUserId', anonId);
         }
         setUserId(anonId);
+
+        const params = new URLSearchParams(window.location.search);
+        setInviteCode((params.get('invite') || '').toUpperCase().trim());
     }, []);
+
+    const joinRoomByCode = useCallback(async (code: string) => {
+        if (!userId) return;
+
+        setLoading(true);
+        setError('');
+
+        try {
+            const res = await fetch('/api/rooms/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code.toUpperCase(), isSpectator: false, userId })
+            });
+
+            const room = await res.json();
+
+            if (res.ok) {
+                router.push(`/room/${room.id}`);
+                return;
+            }
+
+            setError(room.error || 'Failed to join room');
+        } catch {
+            setError('Network error');
+        } finally {
+            setLoading(false);
+        }
+    }, [router, userId]);
 
     const handleCreateRoom = async () => {
         setLoading(true);
@@ -47,30 +80,23 @@ export default function LobbyPage() {
     const handleJoinRoom = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!joinCode.trim()) return;
-
-        setLoading(true);
-        setError('');
-
-        try {
-            const res = await fetch('/api/rooms/join', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: joinCode.toUpperCase(), isSpectator: false, userId })
-            });
-
-            const room = await res.json();
-
-            if (res.ok) {
-                router.push(`/room/${room.id}`);
-            } else {
-                setError(room.error || 'Failed to join room');
-            }
-        } catch {
-            setError('Network error');
-        } finally {
-            setLoading(false);
-        }
+        await joinRoomByCode(joinCode);
     };
+
+    useEffect(() => {
+        if (!inviteCode) return;
+        setJoinCode(inviteCode);
+    }, [inviteCode]);
+
+    useEffect(() => {
+        setInviteHandled(false);
+    }, [inviteCode]);
+
+    useEffect(() => {
+        if (!userId || !inviteCode || inviteCode.length !== 6 || inviteHandled) return;
+        setInviteHandled(true);
+        void joinRoomByCode(inviteCode);
+    }, [inviteCode, inviteHandled, joinRoomByCode, userId]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
@@ -87,6 +113,17 @@ export default function LobbyPage() {
                 {error && (
                     <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 text-center">
                         <p className="text-red-300">{error}</p>
+                    </div>
+                )}
+
+                {inviteCode.length === 6 && (
+                    <div className="bg-blue-500/15 border border-blue-400/40 rounded-lg p-4 text-center">
+                        <p className="text-blue-200 font-semibold">
+                            Invite detected for room <span className="font-mono tracking-widest">{inviteCode}</span>
+                        </p>
+                        <p className="text-blue-100/80 text-sm mt-1">
+                            {loading ? 'Joining room as guest...' : 'If auto-join fails, you can still join manually below.'}
+                        </p>
                     </div>
                 )}
 

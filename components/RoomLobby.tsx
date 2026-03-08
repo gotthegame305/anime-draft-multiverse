@@ -34,6 +34,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [pusherStatus, setPusherStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting');
+    const [inviteCopied, setInviteCopied] = useState(false);
 
     const fetchRoom = useCallback(async () => {
         try {
@@ -139,6 +140,20 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
         router.push('/lobby');
     };
 
+    const handleCopyInviteLink = async () => {
+        if (!room || typeof window === 'undefined') return;
+
+        const inviteLink = `${window.location.origin}/lobby?invite=${encodeURIComponent(room.code)}`;
+
+        try {
+            await navigator.clipboard.writeText(inviteLink);
+            setInviteCopied(true);
+            setTimeout(() => setInviteCopied(false), 2000);
+        } catch {
+            setError('Failed to copy invite link');
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -167,6 +182,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
     const activePlayers = room.players.filter(p => !p.isSpectator);
     const spectators = room.players.filter(p => p.isSpectator);
     const canStart = isHost && activePlayers.length >= 2 && activePlayers.length <= 4;
+    const invitePath = `/lobby?invite=${room.code}`;
 
     console.log("[LOBBY DEBUG] Render check:", {
         isHost,
@@ -207,6 +223,23 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                         >
                             <span>🔄</span> Manual Refresh
                         </button>
+                        <div className="w-full max-w-xl bg-slate-900/70 border border-slate-700 rounded-xl p-3">
+                            <p className="text-slate-400 text-xs uppercase tracking-widest mb-2">Invite Link</p>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <div className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-left text-sm text-blue-200 break-all">
+                                    {invitePath}
+                                </div>
+                                <button
+                                    onClick={handleCopyInviteLink}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-lg whitespace-nowrap transition-colors"
+                                >
+                                    {inviteCopied ? 'Copied!' : 'Copy Invite Link'}
+                                </button>
+                            </div>
+                            <p className="text-slate-500 text-xs mt-2">
+                                Copy sends the full URL. Anyone opening it will auto-join the room lobby as a guest unless they are already signed in.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
