@@ -23,7 +23,7 @@ interface GameState {
         winnerId: string;
         scores: { [userId: string]: number };
         logs: string[];
-    };
+    } | null;
     hostId?: string;
 }
 
@@ -419,7 +419,7 @@ export default function MultiplayerGame({
             activeRoles: roles,
             playerTeams: freshTeams,
             skipsRemaining: freshSkips,
-            results: undefined,
+            results: null,
         };
     }, [activePlayers]);
 
