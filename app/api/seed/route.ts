@@ -20,7 +20,7 @@ const ANIME_MAPPING: Record<string, number[]> = {
         34662,  // Fate/Apocrypha
         38084,  // Fate/Grand Order: Babylonia
         43487,  // Fate/Grand Order: Camelot
-        22043,  // Fate/kaleid Prisma Illya
+        14829,  // Fate/kaleid liner Prisma Illya
         39533,  // Fate/Grand Order: Absolute Demonic Front
     ],
 };
