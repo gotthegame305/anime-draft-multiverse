@@ -195,13 +195,21 @@ export default function MultiplayerGame({
             syncTimeoutRef.current = null;
         }
 
-        const playerIds = Object.keys(finalState.playerTeams);
+        const roles = finalState.activeRoles || [...BASE_ROLES] as RoleKey[];
+        const playerIds = activePlayers.map((player) => player.userId);
+
         if (playerIds.length < 2) {
             // Edge case: Solo or bug
             return;
         }
 
-        const roles = finalState.activeRoles || [...BASE_ROLES] as RoleKey[];
+        const normalizedTeams = Object.fromEntries(
+            playerIds.map((playerId) => {
+                const teamKey = getNormalizedPlayerKey(Object.keys(finalState.playerTeams), playerId);
+                return [playerId, finalState.playerTeams[teamKey] || new Array(roles.length).fill(null)];
+            })
+        ) as { [userId: string]: (CharacterItem | null)[] };
+
         const teamNames = Object.fromEntries(
             playerIds.map((playerId) => [playerId, getDisplayName(playerId)])
         ) as { [userId: string]: string };
@@ -212,8 +220,8 @@ export default function MultiplayerGame({
 
         if (playerIds.length === 2) {
             const [p1, p2] = playerIds;
-            const teamA = finalState.playerTeams[p1];
-            const teamB = finalState.playerTeams[p2];
+            const teamA = normalizedTeams[p1];
+            const teamB = normalizedTeams[p2];
             const nameA = teamNames[p1];
             const nameB = teamNames[p2];
             const result = simulateMatchup(teamA, teamB, roles, nameA, nameB);
@@ -225,7 +233,7 @@ export default function MultiplayerGame({
             winnerId = result.userScore > result.cpuScore ? p1 : result.cpuScore > result.userScore ? p2 : p1;
             logs = result.logs;
         } else {
-            const result = simulateMultiplayerMatchup(finalState.playerTeams, roles, teamNames);
+            const result = simulateMultiplayerMatchup(normalizedTeams, roles, teamNames);
             winnerId = result.winnerId;
             scores = result.scores;
             logs = result.logs;
@@ -244,7 +252,7 @@ export default function MultiplayerGame({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'end', data: newState, userId })
         });
-    }, [roomId, getDisplayName, userId]);
+    }, [roomId, getDisplayName, userId, activePlayers, getNormalizedPlayerKey]);
 
     // ---  Turn Timer ---
     useEffect(() => {
@@ -645,14 +653,15 @@ export default function MultiplayerGame({
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                        {Object.entries(gameState.playerTeams).map(([playerId, team]) => {
-                            const playerIdx = activePlayers.findIndex(p => p.userId === playerId);
-                            const name = getDisplayName(playerId, playerIdx >= 0 ? playerIdx : undefined);
-                            const score = gameState.results?.scores[playerId] || 0;
-                            const isWinner = gameState.results?.winnerId === playerId;
+                        {activePlayers.map((player, playerIdx) => {
+                            const playerKey = getNormalizedPlayerKey(Object.keys(gameState.playerTeams), player.userId);
+                            const team = gameState.playerTeams[playerKey] || [];
+                            const name = getDisplayName(player.userId, playerIdx);
+                            const score = gameState.results?.scores[player.userId] ?? gameState.results?.scores[playerKey] ?? 0;
+                            const isWinner = gameState.results?.winnerId === player.userId;
 
                             return (
-                                <div key={playerId} className={`p-6 rounded-xl border-2 ${isWinner ? 'border-yellow-400 bg-yellow-400/10' : 'border-slate-600 bg-slate-700/30'}`}>
+                                <div key={player.userId} className={`p-6 rounded-xl border-2 ${isWinner ? 'border-yellow-400 bg-yellow-400/10' : 'border-slate-600 bg-slate-700/30'}`}>
                                     <h3 className={`text-xl font-bold mb-1 ${isWinner ? 'text-yellow-400' : 'text-white'}`}>
                                         {name} {isWinner && '👑'}
                                     </h3>
