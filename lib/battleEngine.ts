@@ -9,6 +9,12 @@ export interface BattleResult {
     logs: string[];
 }
 
+export interface MultiplayerBattleResult {
+    winnerId: string;
+    scores: { [userId: string]: number };
+    logs: string[];
+}
+
 export function calculateCharacterPower(char: CharacterItem, role: RoleKey, effectiveStars: number): number {
     const favorites = char.stats?.favorites || 100;
     const base = Math.log(favorites);
@@ -183,4 +189,167 @@ export function simulateMatchup(
     logs.push(`\nFINAL SCORE: ${userScore}-${cpuScore} ${isWin ? '(VICTORY!)' : '(DEFEAT!)'}`);
 
     return { isWin, userScore, cpuScore, logs };
+}
+
+export function simulateMultiplayerMatchup(
+    teams: { [userId: string]: (CharacterItem | null)[] },
+    roles: RoleKey[],
+    teamNames: { [userId: string]: string }
+): MultiplayerBattleResult {
+    const playerIds = Object.keys(teams);
+    const logs: string[] = [];
+    const scores: { [userId: string]: number } = {};
+    const effectiveStarsByPlayer: { [userId: string]: number[] } = {};
+
+    playerIds.forEach((playerId) => {
+        scores[playerId] = 0;
+        effectiveStarsByPlayer[playerId] = teams[playerId].map((char, index) =>
+            char ? Number(char.stats.roleStats[roles[index]] || 1) : 0
+        );
+    });
+
+    const supportIndex = roles.indexOf('support');
+    const auraIndex = roles.indexOf('aura');
+    const traitorIndex = roles.indexOf('traitor');
+
+    logs.push('\n--- PRE-BATTLE MODIFIERS ---');
+
+    if (supportIndex !== -1) {
+        playerIds.forEach((playerId) => {
+            applyPreBattleModifier(
+                teams[playerId],
+                teams[playerId],
+                effectiveStarsByPlayer[playerId],
+                effectiveStarsByPlayer[playerId],
+                'support',
+                supportIndex,
+                true,
+                teamNames[playerId] || playerId,
+                teamNames[playerId] || playerId,
+                logs
+            );
+        });
+    }
+
+    if (auraIndex !== -1) {
+        playerIds.forEach((sourcePlayerId) => {
+            playerIds
+                .filter((targetPlayerId) => targetPlayerId !== sourcePlayerId)
+                .forEach((targetPlayerId) => {
+                    applyPreBattleModifier(
+                        teams[sourcePlayerId],
+                        teams[targetPlayerId],
+                        effectiveStarsByPlayer[sourcePlayerId],
+                        effectiveStarsByPlayer[targetPlayerId],
+                        'aura',
+                        auraIndex,
+                        false,
+                        teamNames[sourcePlayerId] || sourcePlayerId,
+                        teamNames[targetPlayerId] || targetPlayerId,
+                        logs
+                    );
+                });
+        });
+    }
+
+    if (traitorIndex !== -1) {
+        playerIds.forEach((playerId) => {
+            applyPreBattleModifier(
+                teams[playerId],
+                teams[playerId],
+                effectiveStarsByPlayer[playerId],
+                effectiveStarsByPlayer[playerId],
+                'traitor',
+                traitorIndex,
+                false,
+                teamNames[playerId] || playerId,
+                teamNames[playerId] || playerId,
+                logs
+            );
+        });
+    }
+
+    logs.push('\n--- COMBAT PHASE ---');
+
+    for (let index = 0; index < roles.length; index++) {
+        const role = roles[index];
+        const roleDisplayName = role.toUpperCase();
+        const isTraitorRound = role === 'traitor';
+
+        const contenders = playerIds
+            .map((playerId) => {
+                const char = teams[playerId][index];
+                if (!char) return null;
+
+                const stars = effectiveStarsByPlayer[playerId][index];
+                return {
+                    playerId,
+                    playerName: teamNames[playerId] || playerId,
+                    char,
+                    stars,
+                    power: calculateCharacterPower(char, role, stars),
+                };
+            })
+            .filter(Boolean) as Array<{
+                playerId: string;
+                playerName: string;
+                char: CharacterItem;
+                stars: number;
+                power: number;
+            }>;
+
+        if (contenders.length < 2) {
+            logs.push(`${roleDisplayName}: ROUND DREW (Not enough combatants)`);
+            continue;
+        }
+
+        const targetPower = isTraitorRound
+            ? Math.min(...contenders.map((entry) => entry.power))
+            : Math.max(...contenders.map((entry) => entry.power));
+
+        const winners = contenders.filter((entry) => Math.abs(entry.power - targetPower) < 0.0001);
+
+        if (winners.length === 1) {
+            const winner = winners[0];
+            scores[winner.playerId] += 1;
+
+            if (isTraitorRound) {
+                logs.push(
+                    `${roleDisplayName}: ${winner.playerName}'s ${winner.char.name} survives the traitor penalty and wins the role (${winner.power.toFixed(1)})`
+                );
+            } else {
+                logs.push(
+                    `${roleDisplayName}: ${winner.playerName}'s ${winner.char.name} wins the role (${winner.power.toFixed(1)})`
+                );
+            }
+        } else {
+            logs.push(
+                `${roleDisplayName}: EXACT TIE between ${winners.map((entry) => entry.playerName).join(', ')}. Nobody scores.`
+            );
+        }
+
+        contenders.forEach((entry) => {
+            logs.push(
+                `   > ${entry.playerName}: ${entry.char.name} (${entry.stars}*20) + Math.log(${entry.char.stats.favorites}) = ${entry.power.toFixed(1)}`
+            );
+        });
+    }
+
+    const sortedPlayers = [...playerIds].sort((a, b) => scores[b] - scores[a]);
+    const topScore = scores[sortedPlayers[0]] ?? 0;
+    const topPlayers = sortedPlayers.filter((playerId) => scores[playerId] === topScore);
+    const winnerId = topPlayers[0];
+
+    if (topPlayers.length > 1) {
+        logs.push(
+            `\nFINAL SCORE: ${sortedPlayers.map((playerId) => `${teamNames[playerId] || playerId} ${scores[playerId]}`).join(' | ')}`
+        );
+        logs.push(`TIEBREAKER: ${teamNames[winnerId] || winnerId} wins on player-order tiebreak.`);
+    } else {
+        logs.push(
+            `\nFINAL SCORE: ${sortedPlayers.map((playerId) => `${teamNames[playerId] || playerId} ${scores[playerId]}`).join(' | ')}`
+        );
+    }
+
+    return { winnerId, scores, logs };
 }

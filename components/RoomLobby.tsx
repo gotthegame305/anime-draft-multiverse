@@ -181,7 +181,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
     const isHost = room.hostId === userId;
     const activePlayers = room.players.filter(p => !p.isSpectator);
     const spectators = room.players.filter(p => p.isSpectator);
-    const canStart = isHost && activePlayers.length >= 2 && activePlayers.length <= 4;
+    const canStart = isHost && activePlayers.length >= 2 && activePlayers.length <= room.maxPlayers;
     const invitePath = `/lobby?invite=${room.code}`;
 
     console.log("[LOBBY DEBUG] Render check:", {
@@ -316,7 +316,7 @@ export default function RoomLobby({ roomId, userId }: { roomId: string; userId: 
                             disabled={!canStart}
                             className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-105 active:scale-95"
                         >
-                            {canStart ? 'Start Game!' : `Need 2-4 Players (${activePlayers.length}/4)`}
+                            {canStart ? 'Start Game!' : `Need 2-${room.maxPlayers} Players (${activePlayers.length}/${room.maxPlayers})`}
                         </button>
                     )}
                     {!isHost && (

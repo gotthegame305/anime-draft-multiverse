@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { pusherClient, subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters, CharacterItem } from '@/app/actions';
 import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
-import { simulateMatchup } from '@/lib/battleEngine';
+import { simulateMatchup, simulateMultiplayerMatchup } from '@/lib/battleEngine';
 
 const { initialSkips: INITIAL_SKIPS, minPoolSize: MIN_POOL_SIZE, turnTimeoutMs: TURN_TIMEOUT_MS, impactSoundUrl: IMPACT_SOUND_URL } = GAME_CONFIG;
 
@@ -196,29 +196,40 @@ export default function MultiplayerGame({
         }
 
         const playerIds = Object.keys(finalState.playerTeams);
-        // Fallback for unexpected >2 players, just get the first two.
-        const p1 = playerIds[0];
-        const p2 = playerIds[1];
-        
-        if (!p1 || !p2) {
+        if (playerIds.length < 2) {
             // Edge case: Solo or bug
             return;
         }
 
-        const teamA = finalState.playerTeams[p1];
-        const teamB = finalState.playerTeams[p2];
-        const nameA = getDisplayName(p1);
-        const nameB = getDisplayName(p2);
         const roles = finalState.activeRoles || [...BASE_ROLES] as RoleKey[];
+        const teamNames = Object.fromEntries(
+            playerIds.map((playerId) => [playerId, getDisplayName(playerId)])
+        ) as { [userId: string]: string };
 
-        const { userScore, cpuScore, logs } = simulateMatchup(teamA, teamB, roles, nameA, nameB);
+        let winnerId: string;
+        let scores: { [userId: string]: number };
+        let logs: string[];
 
-        const scores: { [userId: string]: number } = {
-            [p1]: userScore,
-            [p2]: cpuScore
-        };
+        if (playerIds.length === 2) {
+            const [p1, p2] = playerIds;
+            const teamA = finalState.playerTeams[p1];
+            const teamB = finalState.playerTeams[p2];
+            const nameA = teamNames[p1];
+            const nameB = teamNames[p2];
+            const result = simulateMatchup(teamA, teamB, roles, nameA, nameB);
 
-        const winnerId = userScore > cpuScore ? p1 : cpuScore > userScore ? p2 : p1; // p1 wins tiebreakers
+            scores = {
+                [p1]: result.userScore,
+                [p2]: result.cpuScore
+            };
+            winnerId = result.userScore > result.cpuScore ? p1 : result.cpuScore > result.userScore ? p2 : p1;
+            logs = result.logs;
+        } else {
+            const result = simulateMultiplayerMatchup(finalState.playerTeams, roles, teamNames);
+            winnerId = result.winnerId;
+            scores = result.scores;
+            logs = result.logs;
+        }
 
         const newState: GameState = {
             ...finalState,
