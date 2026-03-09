@@ -3,10 +3,12 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import SynergyBoard from '@/components/SynergyBoard';
 import { pusherClient, subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters, CharacterItem } from '@/app/actions';
 import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
-import { simulateMatchup, simulateMultiplayerMatchup, type ScoreBreakdown } from '@/lib/battleEngine';
+import { finalizeMultiplayerScores, simulateMatchup, simulateMultiplayerMatchup, type ScoreBreakdown } from '@/lib/battleEngine';
+import { evaluateSynergyBoard } from '@/lib/synergyBoard';
 
 const { initialSkips: INITIAL_SKIPS, minPoolSize: MIN_POOL_SIZE, turnTimeoutMs: TURN_TIMEOUT_MS, impactSoundUrl: IMPACT_SOUND_URL } = GAME_CONFIG;
 
@@ -28,7 +30,7 @@ interface GameState {
         winnerId: string;
         scores: { [userId: string]: number };
         logs: string[];
-        breakdowns: { [userId: string]: ScoreBreakdown };
+        breakdowns?: { [userId: string]: ScoreBreakdown };
     } | null;
     hostId?: string;
 }
@@ -51,6 +53,7 @@ export default function MultiplayerGame({
     const [pusherError, setPusherError] = useState(!pusherClient);
     // Turn timer countdown (seconds remaining, null when not active)
     const [turnSecondsLeft, setTurnSecondsLeft] = useState<number | null>(null);
+    const [inspectedSynergyUserId, setInspectedSynergyUserId] = useState<string | null>(null);
 
     // IMPORTANT: Don't sort! Use the same order as the server for currentTurn to work correctly!
     const activePlayers = useMemo(
@@ -125,6 +128,42 @@ export default function MultiplayerGame({
         const normTarget = targetUserId.toLowerCase().trim();
         return keys.find(k => k.toLowerCase().trim() === normTarget) || targetUserId;
     }, []);
+
+    const resolvedFinishedResults = useMemo(() => {
+        if (!gameState || gameState.status !== 'FINISHED' || !gameState.results) return gameState?.results ?? null;
+        if (gameState.results.breakdowns) return gameState.results;
+
+        const roles = gameState.activeRoles || [...BASE_ROLES] as RoleKey[];
+        const playerIds = activePlayers.map((player) => player.userId);
+        if (playerIds.length < 2) return gameState.results;
+
+        const normalizedTeams = Object.fromEntries(
+            playerIds.map((playerId) => {
+                const teamKey = getNormalizedPlayerKey(Object.keys(gameState.playerTeams), playerId);
+                return [playerId, gameState.playerTeams[teamKey] || new Array(roles.length).fill(null)];
+            })
+        ) as { [userId: string]: (CharacterItem | null)[] };
+
+        const teamNames = Object.fromEntries(
+            playerIds.map((playerId, index) => [playerId, getDisplayName(playerId, index)])
+        ) as { [userId: string]: string };
+
+        const combatScores = Object.fromEntries(
+            playerIds.map((playerId) => {
+                const resultKey = getNormalizedPlayerKey(Object.keys(gameState.results?.scores || {}), playerId);
+                const score = gameState.results?.scores[resultKey] ?? 0;
+                return [playerId, score];
+            })
+        ) as { [userId: string]: number };
+
+        return finalizeMultiplayerScores(
+            normalizedTeams,
+            roles,
+            teamNames,
+            combatScores,
+            gameState.results.logs || []
+        );
+    }, [activePlayers, gameState, getDisplayName, getNormalizedPlayerKey]);
 
     const getAvailableCharacters = useCallback((state: GameState, excludeId?: number) => {
         return characterPool.filter((character) => {
@@ -651,14 +690,14 @@ export default function MultiplayerGame({
 
     // --- FINISHED SCREEN ---
     if (gameState.status === 'FINISHED') {
-        const winnerName = gameState.results?.winnerId ? getDisplayName(gameState.results.winnerId) : 'Unknown';
+        const winnerName = resolvedFinishedResults?.winnerId ? getDisplayName(resolvedFinishedResults.winnerId) : 'Unknown';
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
                 <div className="max-w-4xl w-full bg-slate-800/50 backdrop-blur-xl border border-slate-700 rounded-2xl p-8">
                     <h1 className="text-4xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
                         Game Over!
                     </h1>
-                    {gameState.results && (
+                    {resolvedFinishedResults && (
                         <p className="text-center text-yellow-300 font-bold text-xl mb-8">
                             👑 Winner: {winnerName}
                         </p>
@@ -669,9 +708,9 @@ export default function MultiplayerGame({
                             const playerKey = getNormalizedPlayerKey(Object.keys(gameState.playerTeams), player.userId);
                             const team = gameState.playerTeams[playerKey] || [];
                             const name = getDisplayName(player.userId, playerIdx);
-                            const score = gameState.results?.scores[player.userId] ?? gameState.results?.scores[playerKey] ?? 0;
-                            const breakdown = gameState.results?.breakdowns[player.userId] ?? gameState.results?.breakdowns[playerKey] ?? null;
-                            const isWinner = gameState.results?.winnerId === player.userId;
+                            const score = resolvedFinishedResults?.scores[player.userId] ?? resolvedFinishedResults?.scores[playerKey] ?? 0;
+                            const breakdown = resolvedFinishedResults?.breakdowns?.[player.userId] ?? resolvedFinishedResults?.breakdowns?.[playerKey] ?? null;
+                            const isWinner = resolvedFinishedResults?.winnerId === player.userId;
 
                             return (
                                 <div key={player.userId} className={`p-6 rounded-xl border-2 ${isWinner ? 'border-yellow-400 bg-yellow-400/10' : 'border-slate-600 bg-slate-700/30'}`}>
@@ -701,9 +740,9 @@ export default function MultiplayerGame({
                         })}
                     </div>
 
-                    {gameState.results?.logs && (
+                    {resolvedFinishedResults?.logs && (
                         <div className="bg-black/40 border border-slate-700 rounded-xl p-4 mb-8 max-h-72 overflow-y-auto font-mono text-sm space-y-1">
-                            {gameState.results.logs.map((log, i) => (
+                            {resolvedFinishedResults.logs.map((log, i) => (
                                 <div
                                     key={`${log}-${i}`}
                                     className={`${
@@ -746,6 +785,7 @@ export default function MultiplayerGame({
     }
 
     // --- DRAFTING SCREEN ---
+    const currentDraftRoles = gameState.activeRoles || [...BASE_ROLES] as RoleKey[];
     const turnSeconds = TURN_TIMEOUT_MS / 1000;
     const timerPercent = turnSecondsLeft !== null ? (turnSecondsLeft / turnSeconds) * 100 : 100;
     const activePlayerName = activePlayers[gameState.currentTurn]
@@ -862,19 +902,41 @@ export default function MultiplayerGame({
                         const isActive = gameState.currentTurn === playerIdx;
                         const playerSkips = gameState.skipsRemaining[myKey] || INITIAL_SKIPS;
                         const displayName = getDisplayName(player.userId, playerIdx);
+                        const isOwnBoard = !isSpectator && player.userId.toLowerCase().trim() === normUserId;
+                        const showSynergyBoard = isOwnBoard || inspectedSynergyUserId === player.userId;
+                        const playerSynergies = evaluateSynergyBoard(team, currentDraftRoles);
+                        const toggleInspectSynergies = () => {
+                            if (isOwnBoard) return;
+                            setInspectedSynergyUserId((current) => current === player.userId ? null : player.userId);
+                        };
 
                         return (
                             <div
                                 key={player.userId}
                                 className={`bg-slate-800/30 border-2 rounded-xl p-4 transition-all ${isActive ? 'border-yellow-400 shadow-lg shadow-yellow-400/50' : 'border-slate-700'}`}
                             >
-                                <div className="flex justify-between items-center mb-3">
+                                <div className="flex justify-between items-center mb-3 gap-3">
                                     <h3 className="text-white font-bold">
                                         {displayName}
                                         {player.userId === userId && ' (You)'}
                                         {isActive && ' 🎯'}
                                     </h3>
-                                    <p className="text-sm text-gray-400">Redraw: {playerSkips}/{INITIAL_SKIPS}</p>
+                                    <div className="flex items-center gap-2">
+                                        {!isOwnBoard && (
+                                            <button
+                                                type="button"
+                                                onClick={toggleInspectSynergies}
+                                                className={`rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition ${
+                                                    showSynergyBoard
+                                                        ? 'border-cyan-300 bg-cyan-400/20 text-cyan-100'
+                                                        : 'border-slate-600 bg-slate-900/70 text-slate-300 hover:border-cyan-400/60 hover:text-cyan-100'
+                                                }`}
+                                            >
+                                                {showSynergyBoard ? 'Hide Synergies' : 'Inspect Synergies'}
+                                            </button>
+                                        )}
+                                        <p className="text-sm text-gray-400">Redraw: {playerSkips}/{INITIAL_SKIPS}</p>
+                                    </div>
                                 </div>
                                 {isActive && gameState.currentDraw && (
                                     <div className="mb-3 flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2">
@@ -889,20 +951,40 @@ export default function MultiplayerGame({
                                     </div>
                                 )}
                                 <div className={`grid ${gameState.activeRoles?.length === 6 ? 'grid-cols-6' : 'grid-cols-5'} gap-2`}>
-                                    {(gameState.activeRoles || BASE_ROLES).map((roleKey, slotIdx) => {
+                                    {currentDraftRoles.map((roleKey, slotIdx) => {
                                         const role = ROLE_DISPLAY_NAMES[roleKey];
                                         const char = team[slotIdx];
                                         const canPlace = isMyTurn && !!gameState.currentDraw && !char && player.userId.toLowerCase().trim() === normUserId;
                                         const roleRating = char?.stats?.roleStats?.[roleKey] as number | undefined;
+                                        const canInspectCard = !isOwnBoard;
 
                                         return (
                                             <div
                                                 key={slotIdx}
-                                                onClick={() => { if (canPlace) placeCharacter(slotIdx); }}
-                                                className={`relative h-32 rounded-lg border-2 overflow-hidden transition-all cursor-pointer ${char ? 'border-blue-500' : 'border-dashed border-slate-600'} ${canPlace ? 'hover:border-yellow-400 hover:shadow-lg hover:shadow-yellow-400/50' : ''}`}
+                                                onClick={() => {
+                                                    if (canPlace) {
+                                                        placeCharacter(slotIdx);
+                                                        return;
+                                                    }
+                                                    if (canInspectCard) {
+                                                        toggleInspectSynergies();
+                                                    }
+                                                }}
+                                                onKeyDown={(event) => {
+                                                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                                                    event.preventDefault();
+                                                    if (canPlace) {
+                                                        placeCharacter(slotIdx);
+                                                        return;
+                                                    }
+                                                    if (canInspectCard) {
+                                                        toggleInspectSynergies();
+                                                    }
+                                                }}
+                                                className={`relative h-32 rounded-lg border-2 overflow-hidden transition-all cursor-pointer ${char ? 'border-blue-500' : 'border-dashed border-slate-600'} ${canPlace ? 'hover:border-yellow-400 hover:shadow-lg hover:shadow-yellow-400/50' : ''} ${canInspectCard ? 'hover:border-cyan-400/60' : ''}`}
                                                 title={char?.name || role}
                                                 role="button"
-                                                tabIndex={canPlace ? 0 : -1}
+                                                tabIndex={canPlace || canInspectCard ? 0 : -1}
                                             >
                                                 <div className="absolute top-1 right-1 z-10 flex flex-col items-end">
                                                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider px-1 bg-black/50 rounded">
@@ -930,6 +1012,15 @@ export default function MultiplayerGame({
                                         );
                                     })}
                                 </div>
+                                {showSynergyBoard && (
+                                    <div className="mt-3">
+                                        <SynergyBoard
+                                            synergies={playerSynergies}
+                                            title={isOwnBoard ? 'Synergy Board' : `${displayName}'s Synergies`}
+                                            emptyText={isOwnBoard ? 'No live synergies yet. Place cards to start lines.' : 'No live synergies to inspect yet.'}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         );
                     })}

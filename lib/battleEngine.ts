@@ -299,6 +299,44 @@ function buildTiebreakLog(
     return `TIEBREAKER: ${winnerName} takes the win on player-order tiebreak.`;
 }
 
+export function finalizeMultiplayerScores(
+    teams: { [userId: string]: (CharacterItem | null)[] },
+    roles: RoleKey[],
+    teamNames: { [userId: string]: string },
+    combatScores: { [userId: string]: number },
+    baseLogs: string[] = []
+): MultiplayerBattleResult {
+    const playerIds = Object.keys(teams);
+    const logs = [...baseLogs];
+    const breakdowns = Object.fromEntries(
+        playerIds.map((playerId) => [playerId, calculateScoreBreakdown(teams[playerId], roles, combatScores[playerId] ?? 0)])
+    ) as { [userId: string]: ScoreBreakdown };
+
+    appendBonusScoringLogs(logs, playerIds, teamNames, breakdowns);
+
+    const scores = Object.fromEntries(
+        playerIds.map((playerId) => [playerId, breakdowns[playerId].totalPoints])
+    ) as { [userId: string]: number };
+
+    const resolution = resolveWinner(playerIds, breakdowns);
+    const sortedPlayers = sortPlayersForScoreboard(playerIds, breakdowns);
+    const tiebreakLog = buildTiebreakLog(resolution, teamNames, breakdowns);
+
+    logs.push(
+        `\nTOTAL SCORE: ${sortedPlayers.map((playerId) => `${teamNames[playerId] || playerId} ${scores[playerId]}`).join(' | ')}`
+    );
+    if (tiebreakLog) {
+        logs.push(tiebreakLog);
+    }
+
+    return {
+        winnerId: resolution.winnerId,
+        scores,
+        logs,
+        breakdowns,
+    };
+}
+
 export function simulateMatchup(
     userTeam: (CharacterItem | null)[],
     cpuTeam: (CharacterItem | null)[],
@@ -548,31 +586,5 @@ export function simulateMultiplayerMatchup(
         `\nCOMBAT SCORE: ${playerIds.map((playerId) => `${teamNames[playerId] || playerId} ${combatScores[playerId]}`).join(' | ')}`
     );
 
-    const breakdowns = Object.fromEntries(
-        playerIds.map((playerId) => [playerId, calculateScoreBreakdown(teams[playerId], roles, combatScores[playerId])])
-    ) as { [userId: string]: ScoreBreakdown };
-
-    appendBonusScoringLogs(logs, playerIds, teamNames, breakdowns);
-
-    const scores = Object.fromEntries(
-        playerIds.map((playerId) => [playerId, breakdowns[playerId].totalPoints])
-    ) as { [userId: string]: number };
-
-    const resolution = resolveWinner(playerIds, breakdowns);
-    const sortedPlayers = sortPlayersForScoreboard(playerIds, breakdowns);
-    const tiebreakLog = buildTiebreakLog(resolution, teamNames, breakdowns);
-
-    logs.push(
-        `\nTOTAL SCORE: ${sortedPlayers.map((playerId) => `${teamNames[playerId] || playerId} ${scores[playerId]}`).join(' | ')}`
-    );
-    if (tiebreakLog) {
-        logs.push(tiebreakLog);
-    }
-
-    return {
-        winnerId: resolution.winnerId,
-        scores,
-        logs,
-        breakdowns,
-    };
+    return finalizeMultiplayerScores(teams, roles, teamNames, combatScores, logs);
 }

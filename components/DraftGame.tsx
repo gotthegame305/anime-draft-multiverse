@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import { submitMatch, CharacterItem } from '@/app/actions'
 import type { ScoreBreakdown } from '@/lib/battleEngine'
+import SynergyBoard from '@/components/SynergyBoard'
 import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig'
+import { evaluateSynergyBoard } from '@/lib/synergyBoard'
 
 interface DraftGameProps {
     initialCharacters: CharacterItem[]
@@ -43,6 +45,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
 
     const [playedModes, setPlayedModes] = useState<string[]>([])
     const [activeRoles, setActiveRoles] = useState<RoleKey[]>([...BASE_ROLES])
+    const liveSynergies = useMemo(() => evaluateSynergyBoard(board, activeRoles), [board, activeRoles])
 
     useEffect(() => {
         const uniqueUniverses = Array.from(new Set(initialCharacters.map((character) => character.animeUniverse))).sort()
@@ -371,6 +374,10 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
             </header>
 
             <main className="flex-1 flex flex-col items-center justify-between p-4 z-10 w-full max-w-lg mx-auto">
+                <div className="w-full flex-none mb-4">
+                    <SynergyBoard synergies={liveSynergies} />
+                </div>
+
                 <div className="w-full space-y-3 flex-1 overflow-y-auto my-4 no-scrollbar">
                     {board.map((char, index) => (
                         <button
