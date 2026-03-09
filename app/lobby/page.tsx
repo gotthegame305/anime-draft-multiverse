@@ -165,7 +165,7 @@ export default function LobbyPage() {
 
                 {/* Back to Single Player */}
                 <button
-                    onClick={() => router.push('/draft')}
+                    onClick={() => router.push('/game')}
                     className="w-full text-gray-400 hover:text-white transition-colors text-center py-2"
                 >
                     ← Back to Single Player
