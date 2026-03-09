@@ -6,9 +6,14 @@ import { useRouter } from 'next/navigation';
 import { pusherClient, subscribeToRoom, unsubscribeFromRoom } from '@/lib/pusher-client';
 import { getCharacters, CharacterItem } from '@/app/actions';
 import { GAME_CONFIG, BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
-import { simulateMatchup, simulateMultiplayerMatchup } from '@/lib/battleEngine';
+import { simulateMatchup, simulateMultiplayerMatchup, type ScoreBreakdown } from '@/lib/battleEngine';
 
 const { initialSkips: INITIAL_SKIPS, minPoolSize: MIN_POOL_SIZE, turnTimeoutMs: TURN_TIMEOUT_MS, impactSoundUrl: IMPACT_SOUND_URL } = GAME_CONFIG;
+
+function formatBreakdownSummary(breakdown?: ScoreBreakdown | null) {
+    if (!breakdown) return 'combat 0 | stars 0 | universe 0 | fit 0 | sweep 0';
+    return `combat ${breakdown.combatPoints} | stars ${breakdown.rawStarPoints} | universe ${breakdown.universeBonusPoints} | fit ${breakdown.bestRolePoints} | sweep ${breakdown.starSweepPoints}`;
+}
 
 interface GameState {
     currentTurn: number;
@@ -23,6 +28,7 @@ interface GameState {
         winnerId: string;
         scores: { [userId: string]: number };
         logs: string[];
+        breakdowns: { [userId: string]: ScoreBreakdown };
     } | null;
     hostId?: string;
 }
@@ -217,6 +223,7 @@ export default function MultiplayerGame({
         let winnerId: string;
         let scores: { [userId: string]: number };
         let logs: string[];
+        let breakdowns: { [userId: string]: ScoreBreakdown };
 
         if (playerIds.length === 2) {
             const [p1, p2] = playerIds;
@@ -230,19 +237,24 @@ export default function MultiplayerGame({
                 [p1]: result.userScore,
                 [p2]: result.cpuScore
             };
-            winnerId = result.userScore > result.cpuScore ? p1 : result.cpuScore > result.userScore ? p2 : p1;
+            winnerId = result.isWin ? p1 : p2;
             logs = result.logs;
+            breakdowns = {
+                [p1]: result.userBreakdown,
+                [p2]: result.cpuBreakdown
+            };
         } else {
             const result = simulateMultiplayerMatchup(normalizedTeams, roles, teamNames);
             winnerId = result.winnerId;
             scores = result.scores;
             logs = result.logs;
+            breakdowns = result.breakdowns;
         }
 
         const newState: GameState = {
             ...finalState,
             status: 'FINISHED',
-            results: { winnerId, scores, logs }
+            results: { winnerId, scores, logs, breakdowns }
         };
 
         setGameState(newState);
@@ -658,6 +670,7 @@ export default function MultiplayerGame({
                             const team = gameState.playerTeams[playerKey] || [];
                             const name = getDisplayName(player.userId, playerIdx);
                             const score = gameState.results?.scores[player.userId] ?? gameState.results?.scores[playerKey] ?? 0;
+                            const breakdown = gameState.results?.breakdowns[player.userId] ?? gameState.results?.breakdowns[playerKey] ?? null;
                             const isWinner = gameState.results?.winnerId === player.userId;
 
                             return (
@@ -665,7 +678,8 @@ export default function MultiplayerGame({
                                     <h3 className={`text-xl font-bold mb-1 ${isWinner ? 'text-yellow-400' : 'text-white'}`}>
                                         {name} {isWinner && '👑'}
                                     </h3>
-                                    <p className="text-2xl font-bold mb-4 text-center text-orange-400">{score} role points</p>
+                                    <p className="text-2xl font-bold text-center text-orange-400">{score} total points</p>
+                                    <p className="text-xs text-center text-slate-300 mt-2 mb-4 leading-relaxed">{formatBreakdownSummary(breakdown)}</p>
                                     <div className="grid grid-cols-5 gap-2 mb-4">
                                         {team.map((char, idx) => (
                                             <div key={idx} className="relative h-24 rounded-lg overflow-hidden border border-slate-600">
@@ -690,7 +704,18 @@ export default function MultiplayerGame({
                     {gameState.results?.logs && (
                         <div className="bg-black/40 border border-slate-700 rounded-xl p-4 mb-8 max-h-72 overflow-y-auto font-mono text-sm space-y-1">
                             {gameState.results.logs.map((log, i) => (
-                                <div key={`${log}-${i}`} className="text-slate-200">{log}</div>
+                                <div
+                                    key={`${log}-${i}`}
+                                    className={`${
+                                        log.includes('TOTAL SCORE') || log.includes('COMBAT SCORE')
+                                            ? 'text-yellow-300 font-bold'
+                                            : log.includes('BONUS SCORING') || log.includes('TIEBREAKER')
+                                                ? 'text-purple-300'
+                                                : 'text-slate-200'
+                                    }`}
+                                >
+                                    {log}
+                                </div>
                             ))}
                         </div>
                     )}

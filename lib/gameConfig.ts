@@ -26,3 +26,22 @@ export const GAME_CONFIG = {
     /** Impact sound played on each draw */
     impactSoundUrl: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3',
 } as const;
+
+export const SCORING_CONFIG = {
+    sameUniverseBonuses: {
+        3: 2,
+        4: 3,
+        5: 10,
+    },
+    twoUniversePairBonus: 5,
+    allDifferentUniverseBonus: 11,
+    bestRoleMatchPoint: 1,
+    allBestRoleTotal: 10,
+    starSweepBonuses: {
+        1: 100,
+        2: 10,
+        3: 15,
+        4: 20,
+        5: 25,
+    },
+} as const;

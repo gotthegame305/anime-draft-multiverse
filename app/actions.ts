@@ -2,7 +2,8 @@
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { simulateMatchup, RoleKey } from '@/lib/battleEngine'
+import { simulateMatchup } from '@/lib/battleEngine'
+import type { RoleKey } from '@/lib/battleEngine'
 import { BASE_ROLES } from '@/lib/gameConfig'
 
 
@@ -171,7 +172,7 @@ export async function submitMatch(
     cpuTeam: (CharacterItem | null)[],
     rolesPlayed: RoleKey[] = [...BASE_ROLES]
 ) {
-    const { isWin, userScore, cpuScore, logs } = simulateMatchup(userTeam, cpuTeam, rolesPlayed, "You", "CPU");
+    const { isWin, userScore, cpuScore, logs, userBreakdown, cpuBreakdown } = simulateMatchup(userTeam, cpuTeam, rolesPlayed, "You", "CPU");
 
     // Only persist stats for authenticated (logged-in) users — guests play without being recorded
     if (userId) {
@@ -203,7 +204,7 @@ export async function submitMatch(
         revalidatePath('/');
     }
 
-    return { isWin, userScore, cpuScore, logs };
+    return { isWin, userScore, cpuScore, logs, userBreakdown, cpuBreakdown };
 }
 
 export async function getLeaderboard() {

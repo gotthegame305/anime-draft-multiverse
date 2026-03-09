@@ -1,18 +1,45 @@
-import { CharacterItem, RoleStats } from '@/app/actions';
+import type { CharacterItem } from '@/app/actions';
+import { BASE_ROLES, SCORING_CONFIG, type RoleKey as ConfigRoleKey } from '@/lib/gameConfig';
 
-export type RoleKey = keyof RoleStats;
+export type RoleKey = ConfigRoleKey;
+type BaseRoleKey = typeof BASE_ROLES[number];
+
+export interface ScoreBreakdown {
+    combatPoints: number;
+    rawStarPoints: number;
+    universeBonusPoints: number;
+    bestRolePoints: number;
+    starSweepPoints: number;
+    totalPoints: number;
+}
 
 export interface BattleResult {
     isWin: boolean;
     userScore: number;
-    cpuScore: number; // or Enemy Score
+    cpuScore: number;
     logs: string[];
+    userBreakdown: ScoreBreakdown;
+    cpuBreakdown: ScoreBreakdown;
 }
 
 export interface MultiplayerBattleResult {
     winnerId: string;
     scores: { [userId: string]: number };
     logs: string[];
+    breakdowns: { [userId: string]: ScoreBreakdown };
+}
+
+interface WinnerResolution {
+    winnerId: string;
+    reason: 'total' | 'raw-stars' | 'player-order';
+    tiedOnTotal: string[];
+    tiedOnRawStars: string[];
+}
+
+interface BaseRoleEntry {
+    role: BaseRoleKey;
+    char: CharacterItem | null;
+    rawStars: number;
 }
 
 export function calculateCharacterPower(char: CharacterItem, role: RoleKey, effectiveStars: number): number {
@@ -21,28 +48,39 @@ export function calculateCharacterPower(char: CharacterItem, role: RoleKey, effe
     return (effectiveStars * 20) + base;
 }
 
-function getModifierTarget(team: (CharacterItem | null)[], effectiveStars: number[], type: 'random' | 'lowest' | 'highest', excludeIndex: number): number {
+function getRoleStars(char: CharacterItem | null, role: RoleKey): number {
+    if (!char) return 0;
+    return Number(char.stats?.roleStats?.[role] || 1);
+}
+
+function getModifierTarget(
+    team: (CharacterItem | null)[],
+    effectiveStars: number[],
+    type: 'random' | 'lowest' | 'highest',
+    excludeIndex: number
+): number {
     let targetIndex = -1;
     let targetVal = type === 'lowest' ? Infinity : -Infinity;
-    
-    // valid targets are non-null characters
-    const validIndices = team.map((c, i) => c !== null && i !== excludeIndex ? i : -1).filter(i => i !== -1);
-    
+
+    const validIndices = team
+        .map((char, index) => (char !== null && index !== excludeIndex ? index : -1))
+        .filter((index) => index !== -1);
+
     if (validIndices.length === 0) return -1;
 
     if (type === 'random') {
         return validIndices[Math.floor(Math.random() * validIndices.length)];
     }
 
-    for (const i of validIndices) {
-        const stars = effectiveStars[i];
+    for (const index of validIndices) {
+        const stars = effectiveStars[index];
         if (type === 'lowest' && stars < targetVal) {
             targetVal = stars;
-            targetIndex = i;
+            targetIndex = index;
         }
         if (type === 'highest' && stars > targetVal) {
             targetVal = stars;
-            targetIndex = i;
+            targetIndex = index;
         }
     }
 
@@ -63,132 +101,309 @@ function applyPreBattleModifier(
 ) {
     const modifierChar = sourceTeam[modifierIndex];
     if (!modifierChar) return;
-    
+
     const modifierStars = sourceEffectiveStars[modifierIndex];
     const change = isBuff ? 1 : -1;
     const actionText = isBuff ? 'buffs' : 'sabotages';
 
-    logs.push(`✨ ${teamName}'s ${modifierRole.toUpperCase()} (${modifierChar.name}) activates! (${modifierStars}★)`);
+    logs.push(`* ${teamName}'s ${modifierRole.toUpperCase()} (${modifierChar.name}) activates! (${modifierStars}*)`);
 
     if (modifierStars <= 2) {
         const targetIdx = getModifierTarget(targetTeam, targetEffectiveStars, 'random', isBuff ? modifierIndex : -1);
         if (targetIdx !== -1) {
             targetEffectiveStars[targetIdx] = Math.max(1, targetEffectiveStars[targetIdx] + change);
-            logs.push(`   ↳ ${actionText} ${targetTeamName}'s Random slot by 1 star.`);
+            logs.push(`  -> ${actionText} ${targetTeamName}'s random slot by 1 star.`);
         }
     } else if (modifierStars === 3) {
         const targetIdx = getModifierTarget(targetTeam, targetEffectiveStars, 'lowest', isBuff ? modifierIndex : -1);
         if (targetIdx !== -1) {
             targetEffectiveStars[targetIdx] = Math.max(1, targetEffectiveStars[targetIdx] + change);
-            logs.push(`   ↳ ${actionText} ${targetTeamName}'s Lowest Star slot by 1 star.`);
+            logs.push(`  -> ${actionText} ${targetTeamName}'s lowest-star slot by 1 star.`);
         }
     } else if (modifierStars === 4) {
         const targetIdx = getModifierTarget(targetTeam, targetEffectiveStars, 'highest', isBuff ? modifierIndex : -1);
         if (targetIdx !== -1) {
             targetEffectiveStars[targetIdx] = Math.max(1, targetEffectiveStars[targetIdx] + change);
-            logs.push(`   ↳ ${actionText} ${targetTeamName}'s Highest Star slot by 1 star.`);
+            logs.push(`  -> ${actionText} ${targetTeamName}'s highest-star slot by 1 star.`);
         }
     } else if (modifierStars >= 5) {
-        for (let i = 0; i < targetTeam.length; i++) {
-            if (targetTeam[i]) {
-                targetEffectiveStars[i] = Math.max(1, targetEffectiveStars[i] + change);
+        for (let index = 0; index < targetTeam.length; index++) {
+            if (targetTeam[index]) {
+                targetEffectiveStars[index] = Math.max(1, targetEffectiveStars[index] + change);
             }
         }
-        logs.push(`   ↳ ${actionText} ALL of ${targetTeamName}'s characters by 1 star.`);
+        logs.push(`  -> ${actionText} all of ${targetTeamName}'s characters by 1 star.`);
     }
 }
 
-export function simulateMatchup(
-    userTeam: (CharacterItem | null)[], 
-    cpuTeam: (CharacterItem | null)[], 
+function getBaseRoleEntries(team: (CharacterItem | null)[], roles: RoleKey[]): BaseRoleEntry[] {
+    return BASE_ROLES.map((role) => {
+        const roleIndex = roles.indexOf(role);
+        const char = roleIndex === -1 ? null : (team[roleIndex] ?? null);
+
+        return {
+            role,
+            char,
+            rawStars: getRoleStars(char, role),
+        };
+    });
+}
+
+function calculateScoreBreakdown(
+    team: (CharacterItem | null)[],
     roles: RoleKey[],
-    userTeamName: string = "You",
-    cpuTeamName: string = "CPU"
+    combatPoints: number
+): ScoreBreakdown {
+    const baseEntries = getBaseRoleEntries(team, roles);
+    const rawStars = baseEntries.map((entry) => entry.rawStars);
+    const chars = baseEntries.map((entry) => entry.char).filter((char): char is CharacterItem => char !== null);
+
+    const universeCounts = new Map<string, number>();
+    for (const char of chars) {
+        universeCounts.set(char.animeUniverse, (universeCounts.get(char.animeUniverse) || 0) + 1);
+    }
+
+    let sameUniversePoints = 0;
+    for (const count of Array.from(universeCounts.values())) {
+        if (count >= 3) sameUniversePoints += SCORING_CONFIG.sameUniverseBonuses[3];
+        if (count >= 4) sameUniversePoints += SCORING_CONFIG.sameUniverseBonuses[4];
+        if (count >= 5) sameUniversePoints += SCORING_CONFIG.sameUniverseBonuses[5];
+    }
+
+    const universesWithPairs = Array.from(universeCounts.values()).filter((count) => count >= 2).length;
+    const twoUniversePairPoints = universesWithPairs >= 2 ? SCORING_CONFIG.twoUniversePairBonus : 0;
+    const allDifferentUniversePoints =
+        chars.length === BASE_ROLES.length && universeCounts.size === BASE_ROLES.length
+            ? SCORING_CONFIG.allDifferentUniverseBonus
+            : 0;
+
+    const bestRoleMatches = baseEntries.reduce((count, entry) => {
+        if (!entry.char) return count;
+
+        const bestBaseRoleStars = BASE_ROLES.reduce((best, role) => {
+            return Math.max(best, getRoleStars(entry.char, role));
+        }, 0);
+
+        return entry.rawStars === bestBaseRoleStars ? count + 1 : count;
+    }, 0);
+
+    const bestRolePoints =
+        bestRoleMatches === BASE_ROLES.length
+            ? SCORING_CONFIG.allBestRoleTotal
+            : bestRoleMatches * SCORING_CONFIG.bestRoleMatchPoint;
+
+    let starSweepPoints = 0;
+    if (rawStars.length === BASE_ROLES.length && rawStars.every((stars) => stars > 0 && stars === rawStars[0])) {
+        starSweepPoints = SCORING_CONFIG.starSweepBonuses[rawStars[0] as keyof typeof SCORING_CONFIG.starSweepBonuses] || 0;
+    }
+
+    const rawStarPoints = rawStars.reduce((sum, stars) => sum + stars, 0);
+    const universeBonusPoints = sameUniversePoints + twoUniversePairPoints + allDifferentUniversePoints;
+    const totalPoints = combatPoints + rawStarPoints + universeBonusPoints + bestRolePoints + starSweepPoints;
+
+    return {
+        combatPoints,
+        rawStarPoints,
+        universeBonusPoints,
+        bestRolePoints,
+        starSweepPoints,
+        totalPoints,
+    };
+}
+
+function appendBonusScoringLogs(
+    logs: string[],
+    playerIds: string[],
+    teamNames: { [id: string]: string },
+    breakdowns: { [id: string]: ScoreBreakdown }
+) {
+    logs.push('\n--- BONUS SCORING ---');
+    for (const playerId of playerIds) {
+        const breakdown = breakdowns[playerId];
+        const teamName = teamNames[playerId] || playerId;
+        logs.push(
+            `${teamName}: combat ${breakdown.combatPoints} + stars ${breakdown.rawStarPoints} + universe ${breakdown.universeBonusPoints} + fit ${breakdown.bestRolePoints} + sweep ${breakdown.starSweepPoints} = ${breakdown.totalPoints}`
+        );
+    }
+}
+
+function resolveWinner(playerIds: string[], breakdowns: { [id: string]: ScoreBreakdown }): WinnerResolution {
+    const topTotal = Math.max(...playerIds.map((playerId) => breakdowns[playerId]?.totalPoints ?? 0));
+    const tiedOnTotal = playerIds.filter((playerId) => (breakdowns[playerId]?.totalPoints ?? 0) === topTotal);
+
+    if (tiedOnTotal.length === 1) {
+        return {
+            winnerId: tiedOnTotal[0],
+            reason: 'total',
+            tiedOnTotal,
+            tiedOnRawStars: tiedOnTotal,
+        };
+    }
+
+    const topRawStars = Math.max(...tiedOnTotal.map((playerId) => breakdowns[playerId]?.rawStarPoints ?? 0));
+    const tiedOnRawStars = tiedOnTotal.filter((playerId) => (breakdowns[playerId]?.rawStarPoints ?? 0) === topRawStars);
+
+    if (tiedOnRawStars.length === 1) {
+        return {
+            winnerId: tiedOnRawStars[0],
+            reason: 'raw-stars',
+            tiedOnTotal,
+            tiedOnRawStars,
+        };
+    }
+
+    return {
+        winnerId: tiedOnRawStars[0],
+        reason: 'player-order',
+        tiedOnTotal,
+        tiedOnRawStars,
+    };
+}
+
+function sortPlayersForScoreboard(playerIds: string[], breakdowns: { [id: string]: ScoreBreakdown }): string[] {
+    const playerOrder = new Map(playerIds.map((playerId, index) => [playerId, index]));
+
+    return [...playerIds].sort((left, right) => {
+        const leftBreakdown = breakdowns[left];
+        const rightBreakdown = breakdowns[right];
+
+        if (rightBreakdown.totalPoints !== leftBreakdown.totalPoints) {
+            return rightBreakdown.totalPoints - leftBreakdown.totalPoints;
+        }
+
+        if (rightBreakdown.rawStarPoints !== leftBreakdown.rawStarPoints) {
+            return rightBreakdown.rawStarPoints - leftBreakdown.rawStarPoints;
+        }
+
+        return (playerOrder.get(left) || 0) - (playerOrder.get(right) || 0);
+    });
+}
+
+function buildTiebreakLog(
+    resolution: WinnerResolution,
+    teamNames: { [id: string]: string },
+    breakdowns: { [id: string]: ScoreBreakdown }
+): string | null {
+    if (resolution.reason === 'total') return null;
+
+    const winnerName = teamNames[resolution.winnerId] || resolution.winnerId;
+
+    if (resolution.reason === 'raw-stars') {
+        const details = resolution.tiedOnTotal
+            .map((playerId) => `${teamNames[playerId] || playerId} ${breakdowns[playerId].rawStarPoints}`)
+            .join(' | ');
+
+        return `TIEBREAKER: ${winnerName} takes the win on higher raw star total (${details}).`;
+    }
+
+    return `TIEBREAKER: ${winnerName} takes the win on player-order tiebreak.`;
+}
+
+export function simulateMatchup(
+    userTeam: (CharacterItem | null)[],
+    cpuTeam: (CharacterItem | null)[],
+    roles: RoleKey[],
+    userTeamName: string = 'You',
+    cpuTeamName: string = 'CPU'
 ): BattleResult {
-    let userScore = 0;
-    let cpuScore = 0;
+    let userCombatPoints = 0;
+    let cpuCombatPoints = 0;
     const logs: string[] = [];
 
-    // 1. Initialize effective stars
-    const userEffectiveStars: number[] = userTeam.map((c, i) => c ? Number(c.stats.roleStats[roles[i]] || 1) : 0);
-    const cpuEffectiveStars: number[] = cpuTeam.map((c, i) => c ? Number(c.stats.roleStats[roles[i]] || 1) : 0);
+    const userEffectiveStars = userTeam.map((char, index) => (char ? getRoleStars(char, roles[index]) : 0));
+    const cpuEffectiveStars = cpuTeam.map((char, index) => (char ? getRoleStars(char, roles[index]) : 0));
 
-    // 2. Look for Modifiers in the drafted roles
     const supportIndex = roles.indexOf('support');
     const auraIndex = roles.indexOf('aura');
     const traitorIndex = roles.indexOf('traitor');
 
-    logs.push(`\n🎲 --- PRE-BATTLE MODIFIERS ---`);
+    logs.push('\n--- PRE-BATTLE MODIFIERS ---');
 
-    // Support buffs allies
     if (supportIndex !== -1) {
         applyPreBattleModifier(userTeam, userTeam, userEffectiveStars, userEffectiveStars, 'support', supportIndex, true, userTeamName, userTeamName, logs);
         applyPreBattleModifier(cpuTeam, cpuTeam, cpuEffectiveStars, cpuEffectiveStars, 'support', supportIndex, true, cpuTeamName, cpuTeamName, logs);
     }
 
-    // Aura debuffs enemies
     if (auraIndex !== -1) {
         applyPreBattleModifier(userTeam, cpuTeam, userEffectiveStars, cpuEffectiveStars, 'aura', auraIndex, false, userTeamName, cpuTeamName, logs);
         applyPreBattleModifier(cpuTeam, userTeam, cpuEffectiveStars, userEffectiveStars, 'aura', auraIndex, false, cpuTeamName, userTeamName, logs);
     }
 
-    // Traitor debuffs allies
     if (traitorIndex !== -1) {
         applyPreBattleModifier(userTeam, userTeam, userEffectiveStars, userEffectiveStars, 'traitor', traitorIndex, false, userTeamName, userTeamName, logs);
         applyPreBattleModifier(cpuTeam, cpuTeam, cpuEffectiveStars, cpuEffectiveStars, 'traitor', traitorIndex, false, cpuTeamName, cpuTeamName, logs);
     }
 
-    logs.push(`\n⚔️ --- COMBAT PHASE ---`);
+    logs.push('\n--- COMBAT PHASE ---');
 
-    // 3. Round by Round Combat
-    for (let i = 0; i < roles.length; i++) {
-        const role = roles[i];
+    for (let index = 0; index < roles.length; index++) {
+        const role = roles[index];
         const roleDisplayName = role.toUpperCase();
-
-        const userChar = userTeam[i];
-        const cpuChar = cpuTeam[i];
+        const userChar = userTeam[index];
+        const cpuChar = cpuTeam[index];
 
         if (!userChar || !cpuChar) {
-            logs.push(`${roleDisplayName}: ROUND DREW (Missing Character)`);
+            logs.push(`${roleDisplayName}: ROUND DREW (Missing character)`);
             continue;
         }
 
-        const userStars = userEffectiveStars[i];
-        const cpuStars = cpuEffectiveStars[i];
-
-        const userTotal = calculateCharacterPower(userChar, role, userStars);
-        const cpuTotal = calculateCharacterPower(cpuChar, role, cpuStars);
-
+        const userStars = userEffectiveStars[index];
+        const cpuStars = cpuEffectiveStars[index];
+        const userPower = calculateCharacterPower(userChar, role, userStars);
+        const cpuPower = calculateCharacterPower(cpuChar, role, cpuStars);
         const isTraitorRound = role === 'traitor';
 
-        if (userTotal > cpuTotal) {
+        if (userPower > cpuPower) {
             if (isTraitorRound) {
-                cpuScore++;
-                logs.push(`${roleDisplayName} (Traitor Penalty!): ❌ ${userChar.name} (Pwr: ${userTotal.toFixed(1)}) GIVES POINT TO ${cpuTeamName}!`);
+                cpuCombatPoints += 1;
+                logs.push(`${roleDisplayName} (Traitor Penalty): ${userChar.name} gives a point to ${cpuTeamName}.`);
             } else {
-                userScore++;
-                logs.push(`${roleDisplayName}: ✅ ${userChar.name} (Pwr: ${userTotal.toFixed(1)}) DEFEATS ❌ ${cpuChar.name} (Pwr: ${cpuTotal.toFixed(1)})`);
+                userCombatPoints += 1;
+                logs.push(`${roleDisplayName}: ${userChar.name} defeats ${cpuChar.name}.`);
             }
-        } else if (cpuTotal > userTotal) {
+        } else if (cpuPower > userPower) {
             if (isTraitorRound) {
-                userScore++;
-                logs.push(`${roleDisplayName} (Traitor Penalty!): ✅ ${cpuTeamName}'s ${cpuChar.name} (Pwr: ${cpuTotal.toFixed(1)}) GIVES POINT TO YOU!`);
+                userCombatPoints += 1;
+                logs.push(`${roleDisplayName} (Traitor Penalty): ${cpuTeamName}'s ${cpuChar.name} gives a point to ${userTeamName}.`);
             } else {
-                cpuScore++;
-                logs.push(`${roleDisplayName}: ❌ ${userChar.name} (Pwr: ${userTotal.toFixed(1)}) LOSES TO ✅ ${cpuChar.name} (Pwr: ${cpuTotal.toFixed(1)})`);
+                cpuCombatPoints += 1;
+                logs.push(`${roleDisplayName}: ${userChar.name} loses to ${cpuChar.name}.`);
             }
         } else {
-            logs.push(`${roleDisplayName}: ⚖️ EXACT TIE! Nobody scores.`);
+            logs.push(`${roleDisplayName}: EXACT TIE. Nobody scores.`);
         }
 
-        logs.push(`   > ${userTeamName}: (${userStars}⭐ * 20) + Math.log(${userChar.stats.favorites}) = ${userTotal.toFixed(1)}`);
-        logs.push(`   > ${cpuTeamName}: (${cpuStars}⭐ * 20) + Math.log(${cpuChar.stats.favorites}) = ${cpuTotal.toFixed(1)}`);
+        logs.push(`  > ${userTeamName}: (${userStars}*20) + Math.log(${userChar.stats.favorites}) = ${userPower.toFixed(1)}`);
+        logs.push(`  > ${cpuTeamName}: (${cpuStars}*20) + Math.log(${cpuChar.stats.favorites}) = ${cpuPower.toFixed(1)}`);
     }
 
-    const isWin = userScore > cpuScore;
-    logs.push(`\nFINAL SCORE: ${userScore}-${cpuScore} ${isWin ? '(VICTORY!)' : '(DEFEAT!)'}`);
+    logs.push(`\nCOMBAT SCORE: ${userTeamName} ${userCombatPoints} | ${cpuTeamName} ${cpuCombatPoints}`);
 
-    return { isWin, userScore, cpuScore, logs };
+    const userBreakdown = calculateScoreBreakdown(userTeam, roles, userCombatPoints);
+    const cpuBreakdown = calculateScoreBreakdown(cpuTeam, roles, cpuCombatPoints);
+    const breakdowns = { user: userBreakdown, cpu: cpuBreakdown };
+    const teamNames = { user: userTeamName, cpu: cpuTeamName };
+
+    appendBonusScoringLogs(logs, ['user', 'cpu'], teamNames, breakdowns);
+
+    const resolution = resolveWinner(['user', 'cpu'], breakdowns);
+    const userScore = userBreakdown.totalPoints;
+    const cpuScore = cpuBreakdown.totalPoints;
+    const tiebreakLog = buildTiebreakLog(resolution, teamNames, breakdowns);
+
+    logs.push(`\nTOTAL SCORE: ${userTeamName} ${userScore} | ${cpuTeamName} ${cpuScore}`);
+    if (tiebreakLog) {
+        logs.push(tiebreakLog);
+    }
+
+    return {
+        isWin: resolution.winnerId === 'user',
+        userScore,
+        cpuScore,
+        logs,
+        userBreakdown,
+        cpuBreakdown,
+    };
 }
 
 export function simulateMultiplayerMatchup(
@@ -198,15 +413,15 @@ export function simulateMultiplayerMatchup(
 ): MultiplayerBattleResult {
     const playerIds = Object.keys(teams);
     const logs: string[] = [];
-    const scores: { [userId: string]: number } = {};
+    const combatScores: { [userId: string]: number } = {};
     const effectiveStarsByPlayer: { [userId: string]: number[] } = {};
 
-    playerIds.forEach((playerId) => {
-        scores[playerId] = 0;
+    for (const playerId of playerIds) {
+        combatScores[playerId] = 0;
         effectiveStarsByPlayer[playerId] = teams[playerId].map((char, index) =>
-            char ? Number(char.stats.roleStats[roles[index]] || 1) : 0
+            char ? getRoleStars(char, roles[index]) : 0
         );
-    });
+    }
 
     const supportIndex = roles.indexOf('support');
     const auraIndex = roles.indexOf('aura');
@@ -215,7 +430,7 @@ export function simulateMultiplayerMatchup(
     logs.push('\n--- PRE-BATTLE MODIFIERS ---');
 
     if (supportIndex !== -1) {
-        playerIds.forEach((playerId) => {
+        for (const playerId of playerIds) {
             applyPreBattleModifier(
                 teams[playerId],
                 teams[playerId],
@@ -228,32 +443,30 @@ export function simulateMultiplayerMatchup(
                 teamNames[playerId] || playerId,
                 logs
             );
-        });
+        }
     }
 
     if (auraIndex !== -1) {
-        playerIds.forEach((sourcePlayerId) => {
-            playerIds
-                .filter((targetPlayerId) => targetPlayerId !== sourcePlayerId)
-                .forEach((targetPlayerId) => {
-                    applyPreBattleModifier(
-                        teams[sourcePlayerId],
-                        teams[targetPlayerId],
-                        effectiveStarsByPlayer[sourcePlayerId],
-                        effectiveStarsByPlayer[targetPlayerId],
-                        'aura',
-                        auraIndex,
-                        false,
-                        teamNames[sourcePlayerId] || sourcePlayerId,
-                        teamNames[targetPlayerId] || targetPlayerId,
-                        logs
-                    );
-                });
-        });
+        for (const sourcePlayerId of playerIds) {
+            for (const targetPlayerId of playerIds.filter((playerId) => playerId !== sourcePlayerId)) {
+                applyPreBattleModifier(
+                    teams[sourcePlayerId],
+                    teams[targetPlayerId],
+                    effectiveStarsByPlayer[sourcePlayerId],
+                    effectiveStarsByPlayer[targetPlayerId],
+                    'aura',
+                    auraIndex,
+                    false,
+                    teamNames[sourcePlayerId] || sourcePlayerId,
+                    teamNames[targetPlayerId] || targetPlayerId,
+                    logs
+                );
+            }
+        }
     }
 
     if (traitorIndex !== -1) {
-        playerIds.forEach((playerId) => {
+        for (const playerId of playerIds) {
             applyPreBattleModifier(
                 teams[playerId],
                 teams[playerId],
@@ -266,7 +479,7 @@ export function simulateMultiplayerMatchup(
                 teamNames[playerId] || playerId,
                 logs
             );
-        });
+        }
     }
 
     logs.push('\n--- COMBAT PHASE ---');
@@ -311,45 +524,55 @@ export function simulateMultiplayerMatchup(
 
         if (winners.length === 1) {
             const winner = winners[0];
-            scores[winner.playerId] += 1;
+            combatScores[winner.playerId] += 1;
 
             if (isTraitorRound) {
                 logs.push(
-                    `${roleDisplayName}: ${winner.playerName}'s ${winner.char.name} survives the traitor penalty and wins the role (${winner.power.toFixed(1)})`
+                    `${roleDisplayName}: ${winner.playerName}'s ${winner.char.name} survives the traitor penalty and wins the role (${winner.power.toFixed(1)}).`
                 );
             } else {
-                logs.push(
-                    `${roleDisplayName}: ${winner.playerName}'s ${winner.char.name} wins the role (${winner.power.toFixed(1)})`
-                );
+                logs.push(`${roleDisplayName}: ${winner.playerName}'s ${winner.char.name} wins the role (${winner.power.toFixed(1)}).`);
             }
         } else {
-            logs.push(
-                `${roleDisplayName}: EXACT TIE between ${winners.map((entry) => entry.playerName).join(', ')}. Nobody scores.`
-            );
+            logs.push(`${roleDisplayName}: EXACT TIE between ${winners.map((entry) => entry.playerName).join(', ')}. Nobody scores.`);
         }
 
-        contenders.forEach((entry) => {
+        for (const entry of contenders) {
             logs.push(
-                `   > ${entry.playerName}: ${entry.char.name} (${entry.stars}*20) + Math.log(${entry.char.stats.favorites}) = ${entry.power.toFixed(1)}`
+                `  > ${entry.playerName}: ${entry.char.name} (${entry.stars}*20) + Math.log(${entry.char.stats.favorites}) = ${entry.power.toFixed(1)}`
             );
-        });
+        }
     }
 
-    const sortedPlayers = [...playerIds].sort((a, b) => scores[b] - scores[a]);
-    const topScore = scores[sortedPlayers[0]] ?? 0;
-    const topPlayers = sortedPlayers.filter((playerId) => scores[playerId] === topScore);
-    const winnerId = topPlayers[0];
+    logs.push(
+        `\nCOMBAT SCORE: ${playerIds.map((playerId) => `${teamNames[playerId] || playerId} ${combatScores[playerId]}`).join(' | ')}`
+    );
 
-    if (topPlayers.length > 1) {
-        logs.push(
-            `\nFINAL SCORE: ${sortedPlayers.map((playerId) => `${teamNames[playerId] || playerId} ${scores[playerId]}`).join(' | ')}`
-        );
-        logs.push(`TIEBREAKER: ${teamNames[winnerId] || winnerId} wins on player-order tiebreak.`);
-    } else {
-        logs.push(
-            `\nFINAL SCORE: ${sortedPlayers.map((playerId) => `${teamNames[playerId] || playerId} ${scores[playerId]}`).join(' | ')}`
-        );
+    const breakdowns = Object.fromEntries(
+        playerIds.map((playerId) => [playerId, calculateScoreBreakdown(teams[playerId], roles, combatScores[playerId])])
+    ) as { [userId: string]: ScoreBreakdown };
+
+    appendBonusScoringLogs(logs, playerIds, teamNames, breakdowns);
+
+    const scores = Object.fromEntries(
+        playerIds.map((playerId) => [playerId, breakdowns[playerId].totalPoints])
+    ) as { [userId: string]: number };
+
+    const resolution = resolveWinner(playerIds, breakdowns);
+    const sortedPlayers = sortPlayersForScoreboard(playerIds, breakdowns);
+    const tiebreakLog = buildTiebreakLog(resolution, teamNames, breakdowns);
+
+    logs.push(
+        `\nTOTAL SCORE: ${sortedPlayers.map((playerId) => `${teamNames[playerId] || playerId} ${scores[playerId]}`).join(' | ')}`
+    );
+    if (tiebreakLog) {
+        logs.push(tiebreakLog);
     }
 
-    return { winnerId, scores, logs };
+    return {
+        winnerId: resolution.winnerId,
+        scores,
+        logs,
+        breakdowns,
+    };
 }
