@@ -22,7 +22,7 @@ export default function Home() {
         </p>
 
         <Link
-          href="/game"
+          href="/draft"
           className="inline-block group relative px-12 py-5 bg-white text-slate-950 font-black text-xl tracking-wider rounded-full overflow-hidden transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.3)]"
         >
           <span className="relative z-10">ENTER THE DRAFT</span>
