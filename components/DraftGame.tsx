@@ -42,6 +42,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
     const [matchResult, setMatchResult] = useState<MatchResult | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isMuted, setIsMuted] = useState(false)
+    const [showSynergyTray, setShowSynergyTray] = useState(false)
 
     const [playedModes, setPlayedModes] = useState<string[]>([])
     const [activeRoles, setActiveRoles] = useState<RoleKey[]>([...BASE_ROLES])
@@ -90,6 +91,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         )
         const shuffled = [...filtered].sort(() => 0.5 - Math.random())
         setDeck(shuffled)
+        setShowSynergyTray(false)
         setGameState('PLAYING')
     }
 
@@ -173,6 +175,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setSkips(INITIAL_SKIPS)
         setMatchResult(null)
         setOpponentTeam([])
+        setShowSynergyTray(false)
     }
 
     const handleRematch = () => {
@@ -181,6 +184,7 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
         setSkips(INITIAL_SKIPS)
         setMatchResult(null)
         setOpponentTeam([])
+        setShowSynergyTray(false)
         startGame()
     }
 
@@ -351,6 +355,16 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
 
                 <div className="flex items-center space-x-4">
                     <button
+                        onClick={() => setShowSynergyTray((prev) => !prev)}
+                        className={`xl:hidden rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] transition ${
+                            showSynergyTray
+                                ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100'
+                                : 'border-gray-700 bg-gray-800 text-cyan-200 hover:border-cyan-400/60'
+                        }`}
+                    >
+                        Synergy
+                    </button>
+                    <button
                         onClick={() => setIsMuted(!isMuted)}
                         className={`p-2 rounded-full transition-colors ${isMuted ? 'bg-red-900/50 text-red-400' : 'bg-gray-800 text-green-400 hover:bg-gray-700'}`}
                         title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
@@ -373,11 +387,26 @@ export default function DraftGame({ initialCharacters, userId }: DraftGameProps)
                 </div>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-between p-4 z-10 w-full max-w-lg mx-auto">
-                <div className="w-full flex-none mb-4">
-                    <SynergyBoard synergies={liveSynergies} />
-                </div>
+            <div className="hidden xl:block fixed left-4 top-24 z-20 w-[240px]">
+                <SynergyBoard
+                    synergies={liveSynergies}
+                    variant="compact"
+                    emptyText="No live synergies yet. Place cards to start lines."
+                />
+            </div>
 
+            {showSynergyTray && (
+                <div className="xl:hidden fixed inset-x-3 top-20 z-30">
+                    <SynergyBoard
+                        synergies={liveSynergies}
+                        variant="compact"
+                        emptyText="No live synergies yet. Place cards to start lines."
+                        className="mx-auto max-w-xs"
+                    />
+                </div>
+            )}
+
+            <main className="flex-1 flex flex-col items-center justify-between p-4 z-10 w-full max-w-lg mx-auto">
                 <div className="w-full space-y-3 flex-1 overflow-y-auto my-4 no-scrollbar">
                     {board.map((char, index) => (
                         <button
