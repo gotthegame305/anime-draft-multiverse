@@ -35,6 +35,28 @@ const COMIC_VINE_DELAY = 1000;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const NAME_ALIASES: Record<string, string> = {
+    // Dragon Ball
+    freeza: 'frieza',
+    kuririn: 'krillin',
+    tenshinhan: 'tien shinhan',
+    'muten roushi': 'master roshi',
+    'jinzouningen 16 gou': 'android 16',
+    'jinzouningen 17 gou': 'android 17',
+    'jinzouningen 18 gou': 'android 18',
+    vegetto: 'vegito',
+    'gokuu son': 'goku',
+    'gohan son': 'gohan',
+    'goten son': 'goten',
+    'piccolo daimao': 'piccolo',
+    // Fate
+    atalanta: 'atalante',
+    'first hassan': 'king hassan',
+    // Naruto
+    'might guy': 'might, guy',
+    tobi: 'obito uchiha',
+}
+
 function reorderCommaName(name: string) {
     if (!name.includes(',')) return name.trim();
 
@@ -72,10 +94,15 @@ function getLookupKeys(name: string) {
         if (!candidate) return;
 
         const normalized = toLookupKey(candidate);
+        const aliased = NAME_ALIASES[normalized];
         if (!normalized) return;
 
         candidates.add(normalized);
         candidates.add(foldRomanizedLongVowels(normalized));
+        if (aliased) {
+            candidates.add(toLookupKey(aliased));
+            candidates.add(foldRomanizedLongVowels(toLookupKey(aliased)));
+        }
     });
 
     return Array.from(candidates);
