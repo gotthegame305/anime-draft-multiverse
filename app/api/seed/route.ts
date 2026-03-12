@@ -35,6 +35,52 @@ const COMIC_VINE_DELAY = 1000;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+function reorderCommaName(name: string) {
+    if (!name.includes(',')) return name.trim();
+
+    const [last, first] = name.split(',').map(part => part.trim());
+    if (!first) return name.trim();
+
+    return `${first} ${last}`.trim();
+}
+
+function toLookupKey(name: string) {
+    return name
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function foldRomanizedLongVowels(name: string) {
+    return name
+        .replace(/ou/g, 'o')
+        .replace(/oo/g, 'o')
+        .replace(/uu/g, 'u');
+}
+
+function getLookupKeys(name: string) {
+    const candidates = new Set<string>();
+    const trimmed = name.trim();
+    const reordered = reorderCommaName(trimmed);
+    const lastWord = reordered.split(' ').pop() || reordered;
+    const commaFirst = trimmed.includes(',') ? trimmed.split(',').slice(1).join(',').trim() : trimmed;
+
+    [trimmed, reordered, lastWord, commaFirst].forEach(candidate => {
+        if (!candidate) return;
+
+        const normalized = toLookupKey(candidate);
+        if (!normalized) return;
+
+        candidates.add(normalized);
+        candidates.add(foldRomanizedLongVowels(normalized));
+    });
+
+    return Array.from(candidates);
+}
+
 // Rotate through 3 Comic Vine API keys to avoid rate limits
 const COMIC_VINE_KEYS = [
     process.env.COMIC_VINE_KEY_1,
@@ -225,6 +271,37 @@ export async function GET(req: NextRequest) {
         }
 
         // ── STATIC STATS SEEDING ───────────────────────────────────────
+        if (type === 'check') {
+            const characters = await prisma.character.findMany({
+                orderBy: [
+                    { animeUniverse: 'asc' },
+                    { name: 'asc' },
+                ],
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const staticStats = await (prisma as any).staticCharacter.findMany();
+
+            const statMap = new Map<string, string>();
+            staticStats.forEach((s: { name: string }) => {
+                getLookupKeys(s.name).forEach((key) => {
+                    if (!statMap.has(key)) {
+                        statMap.set(key, s.name);
+                    }
+                });
+            });
+
+            const unverified = characters
+                .filter((char) => !getLookupKeys(char.name).some((key) => statMap.has(key)))
+                .map((char) => ({ name: char.name, universe: char.animeUniverse }));
+
+            return NextResponse.json({
+                total: characters.length,
+                unverified: unverified.length,
+                verified: characters.length - unverified.length,
+                characters: unverified,
+            });
+        }
+
         const filePath = path.join(process.cwd(), 'scripts', 'static-characters.json');
         const fileContent = fs.readFileSync(filePath, 'utf8');
         const data = JSON.parse(fileContent);
