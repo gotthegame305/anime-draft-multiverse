@@ -57,6 +57,10 @@ const NAME_ALIASES: Record<string, string> = {
     tobi: 'obito uchiha',
     // One Piece
     'charlotte linlin': 'big mom',
+    kuzan: 'aokiji',
+    'donquixote rosinante': 'corazon',
+    borsalino: 'kizaru',
+    'edward newgate': 'whitebeard',
 }
 
 function reorderCommaName(name: string) {

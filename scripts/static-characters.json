@@ -6383,6 +6383,19 @@
     "traitor": 3
   },
   {
+    "name": "Kung Fu Dugong",
+    "series": "One Piece",
+    "favorites": 0,
+    "winRate": 50,
+    "captain": 1,
+    "viceCaptain": 1,
+    "tank": 1,
+    "duelist": 3,
+    "support": 4,
+    "aura": 1,
+    "traitor": 1
+  },
+  {
     "name": "Kurotsuchi",
     "series": "Naruto",
     "favorites": 122000,
@@ -8606,6 +8619,19 @@
     "traitor": 2
   },
   {
+    "name": "Pandaman",
+    "series": "One Piece",
+    "favorites": 0,
+    "winRate": 50,
+    "captain": 3,
+    "viceCaptain": 3,
+    "tank": 3,
+    "duelist": 3,
+    "support": 3,
+    "aura": 3,
+    "traitor": 3
+  },
+  {
     "name": "Pariston Hill",
     "series": "Hunter x Hunter",
     "favorites": 117000,
@@ -9397,6 +9423,19 @@
     "support": 3,
     "aura": 3,
     "traitor": 3
+  },
+  {
+    "name": "Rocks D., Xebec",
+    "series": "One Piece",
+    "favorites": 0,
+    "winRate": 50,
+    "captain": 5,
+    "viceCaptain": 1,
+    "tank": 5,
+    "duelist": 5,
+    "support": 1,
+    "aura": 5,
+    "traitor": 5
   },
   {
     "name": "Rogue",
