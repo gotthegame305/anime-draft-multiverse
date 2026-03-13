@@ -55,6 +55,8 @@ const NAME_ALIASES: Record<string, string> = {
     // Naruto
     'might guy': 'might, guy',
     tobi: 'obito uchiha',
+    // One Piece
+    'charlotte linlin': 'big mom',
 }
 
 function reorderCommaName(name: string) {
