@@ -888,6 +888,11 @@ export default function MultiplayerGame({
                                     <p className="text-[10px] uppercase tracking-wide text-slate-400">Active Draw</p>
                                     <p className="text-sm text-yellow-300 font-bold">{gameState.currentDraw.name}</p>
                                     <p className="text-xs text-slate-400">{gameState.currentDraw.animeUniverse}</p>
+                                    {gameState.currentDraw.stats?.roleStats?.reason && (
+                                        <p className="mt-1 text-[10px] leading-none text-yellow-200/80">
+                                            &quot;{gameState.currentDraw.stats.roleStats.reason}&quot;
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -947,6 +952,11 @@ export default function MultiplayerGame({
                                             <p className="text-[10px] uppercase tracking-wide text-slate-400">Current Draw</p>
                                             <p className="text-sm text-yellow-300 font-bold truncate">{gameState.currentDraw.name}</p>
                                             <p className="text-xs text-slate-400 truncate">{gameState.currentDraw.animeUniverse}</p>
+                                            {gameState.currentDraw.stats?.roleStats?.reason && (
+                                                <p className="mt-1 text-[10px] leading-none text-yellow-200/80 truncate">
+                                                    &quot;{gameState.currentDraw.stats.roleStats.reason}&quot;
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1000,7 +1010,14 @@ export default function MultiplayerGame({
                                                     <>
                                                         <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
                                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-1">
-                                                            <p className="text-xs text-white font-bold truncate w-full drop-shadow-lg">{char.name}</p>
+                                                            <div className="w-full">
+                                                                <p className="text-xs text-white font-bold truncate w-full drop-shadow-lg">{char.name}</p>
+                                                                {char.stats?.roleStats?.reason && (
+                                                                    <p className="mt-0.5 text-[7px] leading-none text-yellow-200/80 truncate">
+                                                                        &quot;{char.stats.roleStats.reason}&quot;
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </>
                                                 ) : (
