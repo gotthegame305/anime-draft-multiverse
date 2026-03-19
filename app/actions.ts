@@ -6,8 +6,6 @@ import { simulateMatchup } from '@/lib/battleEngine'
 import type { RoleKey } from '@/lib/battleEngine'
 import { BASE_ROLES } from '@/lib/gameConfig'
 
-
-
 export interface RoleStats {
     captain: number;
     viceCaptain: number;
@@ -132,62 +130,44 @@ export async function getCharacters(limit = 500) {
             });
         });
 
-        // Fetch more characters to allow client-side filtering
         const characters = await prisma.character.findMany({
             take: limit,
             orderBy: { stats: 'desc' },
         })
 
-        // Just map them, don't slice yet. Client will filter and shuffle.
+        // Only surface characters backed by static JSON stats.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped = characters.map((char: any) => {
+        const mapped = characters.flatMap((char: any) => {
             const apiStats = char.stats as { favorites: number } | null;
-            const aiStats = char.roleRatings as RoleStats | null;
-            // Normalize Jikan "Last, First" → "First Last" for matching
             const staticChar = getLookupKeys(char.name)
                 .map((key) => statMap.get(key))
                 .find(Boolean);
 
-            // Use the authoritative static stats if available
-            let roleStats: RoleStats;
-            let favorites = apiStats?.favorites || 0;
-
-            if (staticChar) {
-                favorites = staticChar.favorites > 0 ? staticChar.favorites : favorites;
-                roleStats = {
-                    captain: staticChar.captain,
-                    viceCaptain: staticChar.viceCaptain,
-                    tank: staticChar.tank,
-                    duelist: staticChar.duelist,
-                    support: staticChar.support,
-                    aura: staticChar.aura,
-                    traitor: staticChar.traitor,
-                    reason: "Verified Database Stats"
-                };
-            } else {
-                // Fallback: Random seed
-                const seed = char.id + char.name.length;
-                const r = (n: number) => ((seed + n) % 5) + 1;
-
-                roleStats = aiStats || {
-                    captain: r(0),
-                    viceCaptain: r(1),
-                    tank: r(2),
-                    duelist: r(3),
-                    support: r(4),
-                    aura: r(5),
-                    traitor: r(6),
-                };
+            if (!staticChar) {
+                return [];
             }
 
-            return {
+            const favorites = staticChar.favorites > 0 ? staticChar.favorites : (apiStats?.favorites || 0);
+            const roleStats: RoleStats = {
+                captain: staticChar.captain,
+                viceCaptain: staticChar.viceCaptain,
+                tank: staticChar.tank,
+                duelist: staticChar.duelist,
+                support: staticChar.support,
+                aura: staticChar.aura,
+                traitor: staticChar.traitor,
+                reason: "Verified Database Stats"
+            };
+
+            return [{
                 ...char,
                 stats: {
                     favorites,
                     roleStats
                 }
-            };
+            }];
         });
+
         characterCache.set(limit, { expiresAt: now + CHARACTER_CACHE_TTL_MS, data: mapped });
         return mapped;
     } catch (error) {
@@ -198,7 +178,7 @@ export async function getCharacters(limit = 500) {
     }
 }
 
-// userId is null for guests — they play but their results are not recorded
+// userId is null for guests - they play but their results are not recorded
 export async function submitMatch(
     userId: string | null,
     userTeam: (CharacterItem | null)[],
@@ -207,7 +187,7 @@ export async function submitMatch(
 ) {
     const { isWin, userScore, cpuScore, logs, userBreakdown, cpuBreakdown } = simulateMatchup(userTeam, cpuTeam, rolesPlayed, "You", "CPU");
 
-    // Only persist stats for authenticated (logged-in) users — guests play without being recorded
+    // Only persist stats for authenticated (logged-in) users - guests play without being recorded
     if (userId) {
         try {
             await prisma.user.update({

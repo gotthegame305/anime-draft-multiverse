@@ -35,6 +35,40 @@ const COMIC_VINE_DELAY = 1000;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+interface StaticCharacterSeed {
+    name: string;
+    series: string;
+    favorites?: number;
+    winRate?: number;
+    captain?: number;
+    viceCaptain?: number;
+    tank?: number;
+    duelist?: number;
+    support?: number;
+    aura?: number;
+    traitor?: number;
+}
+
+interface JikanCharacterEntry {
+    favorites: number;
+    role: string;
+    character: {
+        mal_id: number;
+        name: string;
+        images: {
+            jpg: {
+                image_url: string;
+            };
+        };
+    };
+}
+
+interface CharacterVerificationRecord {
+    id: number;
+    name: string;
+    animeUniverse: string;
+}
+
 const NAME_ALIASES: Record<string, string> = {
     // Dragon Ball
     freeza: 'frieza',
@@ -114,6 +148,29 @@ function getLookupKeys(name: string) {
     return Array.from(candidates);
 }
 
+function loadStaticCharacters() {
+    const filePath = path.join(process.cwd(), 'scripts', 'static-characters.json');
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(fileContent) as StaticCharacterSeed[];
+}
+
+function buildStaticLookupBySeries(staticCharacters: StaticCharacterSeed[]) {
+    const seriesMap = new Map<string, Set<string>>();
+
+    staticCharacters.forEach((character) => {
+        const seriesKeys = seriesMap.get(character.series) || new Set<string>();
+        getLookupKeys(character.name).forEach((key) => seriesKeys.add(key));
+        seriesMap.set(character.series, seriesKeys);
+    });
+
+    return seriesMap;
+}
+
+function isStaticCharacterMatch(name: string, allowedKeys?: Set<string>) {
+    if (!allowedKeys || allowedKeys.size === 0) return false;
+    return getLookupKeys(name).some((key) => allowedKeys.has(key));
+}
+
 // Rotate through 3 Comic Vine API keys to avoid rate limits
 const COMIC_VINE_KEYS = [
     process.env.COMIC_VINE_KEY_1,
@@ -148,6 +205,36 @@ async function fetchComicVineCharacter(name: string): Promise<{ imageUrl: string
     }
 }
 
+async function findUnverifiedCharacters() {
+    const characters = await prisma.character.findMany({
+        orderBy: [
+            { animeUniverse: 'asc' },
+            { name: 'asc' },
+        ],
+        select: {
+            id: true,
+            name: true,
+            animeUniverse: true,
+        },
+    }) as CharacterVerificationRecord[];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const staticStats = await (prisma as any).staticCharacter.findMany({
+        select: { name: true },
+    }) as Array<{ name: string }>;
+
+    const statKeys = new Set<string>();
+    staticStats.forEach((character) => {
+        getLookupKeys(character.name).forEach((key) => statKeys.add(key));
+    });
+
+    const unverified = characters.filter(
+        (character) => !getLookupKeys(character.name).some((key) => statKeys.has(key))
+    );
+
+    return { characters, unverified };
+}
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const secret = searchParams.get('secret');
@@ -164,6 +251,10 @@ export async function GET(req: NextRequest) {
         if (type === 'jikan') {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const results: any[] = [];
+            const staticCharacters = loadStaticCharacters();
+            const staticLookupBySeries = buildStaticLookupBySeries(staticCharacters);
+            const globalStaticKeys = new Set<string>();
+            staticLookupBySeries.forEach((keys) => keys.forEach((key) => globalStaticKeys.add(key)));
 
             if (targetAnimeId) {
                 const animeId = parseInt(targetAnimeId);
@@ -174,10 +265,10 @@ export async function GET(req: NextRequest) {
                 }
                 const json = await charRes.json();
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const characters = json.data as any[];
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const filtered = characters.filter((c: any) => c.favorites > MIN_FAVORITES || c.role === 'Main');
-                for (const charData of filtered) {
+                const characters = json.data as JikanCharacterEntry[];
+                const filtered = characters.filter((c) => c.favorites > MIN_FAVORITES || c.role === 'Main');
+                const verified = filtered.filter((c) => isStaticCharacterMatch(c.character.name, globalStaticKeys));
+                for (const charData of verified) {
                     const { character, favorites } = charData;
                     await prisma.character.upsert({
                         where: { id: character.mal_id },
@@ -185,14 +276,15 @@ export async function GET(req: NextRequest) {
                         create: { id: character.mal_id, name: character.name, imageUrl: character.images.jpg.image_url, animeUniverse: "Target ID", stats: { favorites } },
                     });
                 }
-                return NextResponse.json({ success: true, count: filtered.length });
+                return NextResponse.json({
+                    success: true,
+                    count: verified.length,
+                    skippedUnlisted: filtered.length - verified.length,
+                });
             }
 
-            const filePath = path.join(process.cwd(), 'scripts', 'static-characters.json');
-            const fileContent = fs.readFileSync(filePath, 'utf8');
-            const data = JSON.parse(fileContent);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const uniqueSeries = Array.from(new Set(data.map((c: any) => c.series))) as string[];
+            const uniqueSeries = Array.from(new Set(staticCharacters.map((c) => c.series))) as string[];
 
             for (const animeName of uniqueSeries) {
                 // Skip Comic Vine series
@@ -222,17 +314,19 @@ export async function GET(req: NextRequest) {
                 }
 
                 let totalCount = 0;
+                let skippedUnlisted = 0;
+                const allowedKeys = staticLookupBySeries.get(animeName);
                 for (const animeId of idsToFetch) {
                     await sleep(JIKAN_DELAY);
                     const charRes = await fetch(`https://api.jikan.moe/v4/anime/${animeId}/characters`);
                     if (!charRes.ok) continue;
                     const json = await charRes.json();
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const characters = json.data as any[];
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const filtered = characters.filter((c: any) => c.favorites > (animeName === 'Fate' ? FATE_MIN_FAVORITES : MIN_FAVORITES) || c.role === 'Main');
-                    for (const charData of filtered) {
+                    const characters = json.data as JikanCharacterEntry[];
+                    const filtered = characters.filter((c) => c.favorites > (animeName === 'Fate' ? FATE_MIN_FAVORITES : MIN_FAVORITES) || c.role === 'Main');
+                    const verified = filtered.filter((c) => isStaticCharacterMatch(c.character.name, allowedKeys));
+                    skippedUnlisted += filtered.length - verified.length;
+                    for (const charData of verified) {
                         const { character, favorites } = charData;
                         await prisma.character.upsert({
                             where: { id: character.mal_id },
@@ -240,9 +334,9 @@ export async function GET(req: NextRequest) {
                             create: { id: character.mal_id, name: character.name, imageUrl: character.images.jpg.image_url, animeUniverse: animeName, stats: { favorites } },
                         });
                     }
-                    totalCount += filtered.length;
+                    totalCount += verified.length;
                 }
-                results.push({ animeName, ids: idsToFetch, count: totalCount, success: true });
+                results.push({ animeName, ids: idsToFetch, count: totalCount, skippedUnlisted, success: true });
             }
             return NextResponse.json({ success: true, results });
         }
@@ -305,39 +399,44 @@ export async function GET(req: NextRequest) {
 
         // ── STATIC STATS SEEDING ───────────────────────────────────────
         if (type === 'check') {
-            const characters = await prisma.character.findMany({
-                orderBy: [
-                    { animeUniverse: 'asc' },
-                    { name: 'asc' },
-                ],
-            });
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const staticStats = await (prisma as any).staticCharacter.findMany();
-
-            const statMap = new Map<string, string>();
-            staticStats.forEach((s: { name: string }) => {
-                getLookupKeys(s.name).forEach((key) => {
-                    if (!statMap.has(key)) {
-                        statMap.set(key, s.name);
-                    }
-                });
-            });
-
-            const unverified = characters
-                .filter((char) => !getLookupKeys(char.name).some((key) => statMap.has(key)))
-                .map((char) => ({ name: char.name, universe: char.animeUniverse }));
+            const { characters, unverified } = await findUnverifiedCharacters();
 
             return NextResponse.json({
                 total: characters.length,
                 unverified: unverified.length,
                 verified: characters.length - unverified.length,
-                characters: unverified,
+                characters: unverified.map((character) => ({
+                    name: character.name,
+                    universe: character.animeUniverse,
+                })),
             });
         }
 
-        const filePath = path.join(process.cwd(), 'scripts', 'static-characters.json');
-        const fileContent = fs.readFileSync(filePath, 'utf8');
-        const data = JSON.parse(fileContent);
+        if (type === 'prune') {
+            const { characters, unverified } = await findUnverifiedCharacters();
+            const idsToDelete = unverified.map((character) => character.id);
+
+            if (idsToDelete.length > 0) {
+                await prisma.character.deleteMany({
+                    where: {
+                        id: { in: idsToDelete },
+                    },
+                });
+            }
+
+            return NextResponse.json({
+                success: true,
+                totalBefore: characters.length,
+                deleted: idsToDelete.length,
+                remaining: characters.length - idsToDelete.length,
+                characters: unverified.map((character) => ({
+                    name: character.name,
+                    universe: character.animeUniverse,
+                })),
+            });
+        }
+
+        const data = loadStaticCharacters();
 
         console.log(`Seeding ${data.length} static stats...`);
         let count = 0;
