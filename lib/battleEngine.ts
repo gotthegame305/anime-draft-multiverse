@@ -1,5 +1,6 @@
 import type { CharacterItem } from '@/app/actions';
 import { BASE_ROLES, SCORING_CONFIG, type RoleKey as ConfigRoleKey } from '@/lib/gameConfig';
+import type { ModifierKind, ReplayEvent } from '@/lib/replayTypes';
 
 export type RoleKey = ConfigRoleKey;
 type BaseRoleKey = typeof BASE_ROLES[number];
@@ -20,6 +21,7 @@ export interface BattleResult {
     logs: string[];
     userBreakdown: ScoreBreakdown;
     cpuBreakdown: ScoreBreakdown;
+    replayEvents: ReplayEvent[];
 }
 
 export interface MultiplayerBattleResult {
@@ -51,6 +53,25 @@ export function calculateCharacterPower(char: CharacterItem, role: RoleKey, effe
 function getRoleStars(char: CharacterItem | null, role: RoleKey): number {
     if (!char) return 0;
     return Number(char.stats?.roleStats?.[role] || 1);
+}
+
+function getReplayRoleLabel(role: RoleKey) {
+    switch (role) {
+        case 'captain':
+            return 'Captain';
+        case 'viceCaptain':
+            return 'Vice Captain';
+        case 'tank':
+            return 'Tank';
+        case 'duelist':
+            return 'Duelist';
+        case 'support':
+            return 'Support';
+        case 'aura':
+            return 'Aura';
+        case 'traitor':
+            return 'Traitor';
+    }
 }
 
 function getModifierTarget(
@@ -97,7 +118,10 @@ function applyPreBattleModifier(
     isBuff: boolean,
     teamName: string,
     targetTeamName: string,
-    logs: string[]
+    logs: string[],
+    replayEvents?: ReplayEvent[],
+    sourceSquadId?: string,
+    targetSquadId?: string
 ) {
     const modifierChar = sourceTeam[modifierIndex];
     if (!modifierChar) return;
@@ -105,6 +129,7 @@ function applyPreBattleModifier(
     const modifierStars = sourceEffectiveStars[modifierIndex];
     const change = isBuff ? 1 : -1;
     const actionText = isBuff ? 'buffs' : 'sabotages';
+    const replayText = isBuff ? 'empowers' : modifierRole === 'aura' ? 'pressures' : 'sabotages';
 
     logs.push(`* ${teamName}'s ${modifierRole.toUpperCase()} (${modifierChar.name}) activates! (${modifierStars}*)`);
 
@@ -113,23 +138,87 @@ function applyPreBattleModifier(
         if (targetIdx !== -1) {
             targetEffectiveStars[targetIdx] = Math.max(1, targetEffectiveStars[targetIdx] + change);
             logs.push(`  -> ${actionText} ${targetTeamName}'s random slot by 1 star.`);
+            const targetChar = targetTeam[targetIdx];
+            if (replayEvents && sourceSquadId && targetSquadId && targetChar) {
+                replayEvents.push({
+                    type: 'modifier',
+                    phase: 'pre-battle',
+                    role: modifierRole,
+                    actorId: modifierChar.id,
+                    targetId: targetChar.id,
+                    actorSquadId: sourceSquadId,
+                    targetSquadId,
+                    modifierKind: modifierRole as ModifierKind,
+                    starDelta: change,
+                    text: `${modifierChar.name} ${replayText} ${targetChar.name}: ${change > 0 ? '+1 star' : '-1 star'}`,
+                    duration: 900,
+                });
+            }
         }
     } else if (modifierStars === 3) {
         const targetIdx = getModifierTarget(targetTeam, targetEffectiveStars, 'lowest', isBuff ? modifierIndex : -1);
         if (targetIdx !== -1) {
             targetEffectiveStars[targetIdx] = Math.max(1, targetEffectiveStars[targetIdx] + change);
             logs.push(`  -> ${actionText} ${targetTeamName}'s lowest-star slot by 1 star.`);
+            const targetChar = targetTeam[targetIdx];
+            if (replayEvents && sourceSquadId && targetSquadId && targetChar) {
+                replayEvents.push({
+                    type: 'modifier',
+                    phase: 'pre-battle',
+                    role: modifierRole,
+                    actorId: modifierChar.id,
+                    targetId: targetChar.id,
+                    actorSquadId: sourceSquadId,
+                    targetSquadId,
+                    modifierKind: modifierRole as ModifierKind,
+                    starDelta: change,
+                    text: `${modifierChar.name} ${replayText} ${targetChar.name}: ${change > 0 ? '+1 star' : '-1 star'}`,
+                    duration: 900,
+                });
+            }
         }
     } else if (modifierStars === 4) {
         const targetIdx = getModifierTarget(targetTeam, targetEffectiveStars, 'highest', isBuff ? modifierIndex : -1);
         if (targetIdx !== -1) {
             targetEffectiveStars[targetIdx] = Math.max(1, targetEffectiveStars[targetIdx] + change);
             logs.push(`  -> ${actionText} ${targetTeamName}'s highest-star slot by 1 star.`);
+            const targetChar = targetTeam[targetIdx];
+            if (replayEvents && sourceSquadId && targetSquadId && targetChar) {
+                replayEvents.push({
+                    type: 'modifier',
+                    phase: 'pre-battle',
+                    role: modifierRole,
+                    actorId: modifierChar.id,
+                    targetId: targetChar.id,
+                    actorSquadId: sourceSquadId,
+                    targetSquadId,
+                    modifierKind: modifierRole as ModifierKind,
+                    starDelta: change,
+                    text: `${modifierChar.name} ${replayText} ${targetChar.name}: ${change > 0 ? '+1 star' : '-1 star'}`,
+                    duration: 900,
+                });
+            }
         }
     } else if (modifierStars >= 5) {
         for (let index = 0; index < targetTeam.length; index++) {
-            if (targetTeam[index]) {
+            const targetChar = targetTeam[index];
+            if (targetChar) {
                 targetEffectiveStars[index] = Math.max(1, targetEffectiveStars[index] + change);
+                if (replayEvents && sourceSquadId && targetSquadId) {
+                    replayEvents.push({
+                        type: 'modifier',
+                        phase: 'pre-battle',
+                        role: modifierRole,
+                        actorId: modifierChar.id,
+                        targetId: targetChar.id,
+                        actorSquadId: sourceSquadId,
+                        targetSquadId,
+                        modifierKind: modifierRole as ModifierKind,
+                        starDelta: change,
+                        text: `${modifierChar.name} ${replayText} ${targetChar.name}: ${change > 0 ? '+1 star' : '-1 star'}`,
+                        duration: 900,
+                    });
+                }
             }
         }
         logs.push(`  -> ${actionText} all of ${targetTeamName}'s characters by 1 star.`);
@@ -347,6 +436,7 @@ export function simulateMatchup(
     let userCombatPoints = 0;
     let cpuCombatPoints = 0;
     const logs: string[] = [];
+    const replayEvents: ReplayEvent[] = [];
 
     const userEffectiveStars = userTeam.map((char, index) => (char ? getRoleStars(char, roles[index]) : 0));
     const cpuEffectiveStars = cpuTeam.map((char, index) => (char ? getRoleStars(char, roles[index]) : 0));
@@ -356,32 +446,61 @@ export function simulateMatchup(
     const traitorIndex = roles.indexOf('traitor');
 
     logs.push('\n--- PRE-BATTLE MODIFIERS ---');
+    replayEvents.push({
+        type: 'phase-start',
+        phase: 'pre-battle',
+        text: 'Pre-battle modifiers begin',
+        duration: 850,
+    });
 
     if (supportIndex !== -1) {
-        applyPreBattleModifier(userTeam, userTeam, userEffectiveStars, userEffectiveStars, 'support', supportIndex, true, userTeamName, userTeamName, logs);
-        applyPreBattleModifier(cpuTeam, cpuTeam, cpuEffectiveStars, cpuEffectiveStars, 'support', supportIndex, true, cpuTeamName, cpuTeamName, logs);
+        applyPreBattleModifier(userTeam, userTeam, userEffectiveStars, userEffectiveStars, 'support', supportIndex, true, userTeamName, userTeamName, logs, replayEvents, 'player', 'player');
+        applyPreBattleModifier(cpuTeam, cpuTeam, cpuEffectiveStars, cpuEffectiveStars, 'support', supportIndex, true, cpuTeamName, cpuTeamName, logs, replayEvents, 'enemy', 'enemy');
     }
 
     if (auraIndex !== -1) {
-        applyPreBattleModifier(userTeam, cpuTeam, userEffectiveStars, cpuEffectiveStars, 'aura', auraIndex, false, userTeamName, cpuTeamName, logs);
-        applyPreBattleModifier(cpuTeam, userTeam, cpuEffectiveStars, userEffectiveStars, 'aura', auraIndex, false, cpuTeamName, userTeamName, logs);
+        applyPreBattleModifier(userTeam, cpuTeam, userEffectiveStars, cpuEffectiveStars, 'aura', auraIndex, false, userTeamName, cpuTeamName, logs, replayEvents, 'player', 'enemy');
+        applyPreBattleModifier(cpuTeam, userTeam, cpuEffectiveStars, userEffectiveStars, 'aura', auraIndex, false, cpuTeamName, userTeamName, logs, replayEvents, 'enemy', 'player');
     }
 
     if (traitorIndex !== -1) {
-        applyPreBattleModifier(userTeam, userTeam, userEffectiveStars, userEffectiveStars, 'traitor', traitorIndex, false, userTeamName, userTeamName, logs);
-        applyPreBattleModifier(cpuTeam, cpuTeam, cpuEffectiveStars, cpuEffectiveStars, 'traitor', traitorIndex, false, cpuTeamName, cpuTeamName, logs);
+        applyPreBattleModifier(userTeam, userTeam, userEffectiveStars, userEffectiveStars, 'traitor', traitorIndex, false, userTeamName, userTeamName, logs, replayEvents, 'player', 'player');
+        applyPreBattleModifier(cpuTeam, cpuTeam, cpuEffectiveStars, cpuEffectiveStars, 'traitor', traitorIndex, false, cpuTeamName, cpuTeamName, logs, replayEvents, 'enemy', 'enemy');
     }
 
     logs.push('\n--- COMBAT PHASE ---');
+    replayEvents.push({
+        type: 'phase-start',
+        phase: 'combat',
+        text: 'Combat phase begins',
+        duration: 850,
+    });
 
     for (let index = 0; index < roles.length; index++) {
         const role = roles[index];
         const roleDisplayName = role.toUpperCase();
+        const replayRoleLabel = getReplayRoleLabel(role);
         const userChar = userTeam[index];
         const cpuChar = cpuTeam[index];
 
         if (!userChar || !cpuChar) {
             logs.push(`${roleDisplayName}: ROUND DREW (Missing character)`);
+            replayEvents.push({
+                type: 'round-start',
+                phase: 'combat',
+                role,
+                targetSquadId: 'enemy',
+                text: `${replayRoleLabel} lane engages`,
+                duration: 500,
+            });
+            replayEvents.push({
+                type: 'round-end',
+                phase: 'combat',
+                role,
+                targetSquadId: 'enemy',
+                text: `${replayRoleLabel} lane resolves with no combatants`,
+                duration: 450,
+            });
             continue;
         }
 
@@ -391,28 +510,118 @@ export function simulateMatchup(
         const cpuPower = calculateCharacterPower(cpuChar, role, cpuStars);
         const isTraitorRound = role === 'traitor';
 
+        replayEvents.push({
+            type: 'round-start',
+            phase: 'combat',
+            role,
+            targetSquadId: 'enemy',
+            text: `${replayRoleLabel} lane engages`,
+            duration: 500,
+        });
+
         if (userPower > cpuPower) {
+            replayEvents.push({
+                type: 'attack',
+                phase: 'combat',
+                role,
+                actorId: userChar.id,
+                targetId: cpuChar.id,
+                actorSquadId: 'player',
+                targetSquadId: 'enemy',
+                text: `${userChar.name} crashes into ${cpuChar.name} on the ${replayRoleLabel.toLowerCase()} lane`,
+                duration: 1050,
+            });
             if (isTraitorRound) {
                 cpuCombatPoints += 1;
                 logs.push(`${roleDisplayName} (Traitor Penalty): ${userChar.name} gives a point to ${cpuTeamName}.`);
+                replayEvents.push({
+                    type: 'score',
+                    phase: 'combat',
+                    role,
+                    winnerSquadId: 'enemy',
+                    delta: 1,
+                    targetSquadId: 'enemy',
+                    text: `${cpuTeamName} claims the traitor swing`,
+                    duration: 750,
+                });
             } else {
                 userCombatPoints += 1;
                 logs.push(`${roleDisplayName}: ${userChar.name} defeats ${cpuChar.name}.`);
+                replayEvents.push({
+                    type: 'score',
+                    phase: 'combat',
+                    role,
+                    winnerSquadId: 'player',
+                    delta: 1,
+                    targetSquadId: 'enemy',
+                    text: `${userTeamName} secures the ${replayRoleLabel.toLowerCase()} point`,
+                    duration: 750,
+                });
             }
         } else if (cpuPower > userPower) {
+            replayEvents.push({
+                type: 'attack',
+                phase: 'combat',
+                role,
+                actorId: cpuChar.id,
+                targetId: userChar.id,
+                actorSquadId: 'enemy',
+                targetSquadId: 'player',
+                text: `${cpuChar.name} overwhelms ${userChar.name} on the ${replayRoleLabel.toLowerCase()} lane`,
+                duration: 1050,
+            });
             if (isTraitorRound) {
                 userCombatPoints += 1;
                 logs.push(`${roleDisplayName} (Traitor Penalty): ${cpuTeamName}'s ${cpuChar.name} gives a point to ${userTeamName}.`);
+                replayEvents.push({
+                    type: 'score',
+                    phase: 'combat',
+                    role,
+                    winnerSquadId: 'player',
+                    delta: 1,
+                    targetSquadId: 'enemy',
+                    text: `${userTeamName} steals the traitor swing`,
+                    duration: 750,
+                });
             } else {
                 cpuCombatPoints += 1;
                 logs.push(`${roleDisplayName}: ${userChar.name} loses to ${cpuChar.name}.`);
+                replayEvents.push({
+                    type: 'score',
+                    phase: 'combat',
+                    role,
+                    winnerSquadId: 'enemy',
+                    delta: 1,
+                    targetSquadId: 'enemy',
+                    text: `${cpuTeamName} secures the ${replayRoleLabel.toLowerCase()} point`,
+                    duration: 750,
+                });
             }
         } else {
             logs.push(`${roleDisplayName}: EXACT TIE. Nobody scores.`);
+            replayEvents.push({
+                type: 'attack',
+                phase: 'combat',
+                role,
+                actorId: userChar.id,
+                targetId: cpuChar.id,
+                actorSquadId: 'player',
+                targetSquadId: 'enemy',
+                text: `${userChar.name} and ${cpuChar.name} clash to a draw`,
+                duration: 1050,
+            });
         }
 
         logs.push(`  > ${userTeamName}: (${userStars}*20) + Math.log(${userChar.stats.favorites}) = ${userPower.toFixed(1)}`);
         logs.push(`  > ${cpuTeamName}: (${cpuStars}*20) + Math.log(${cpuChar.stats.favorites}) = ${cpuPower.toFixed(1)}`);
+        replayEvents.push({
+            type: 'round-end',
+            phase: 'combat',
+            role,
+            targetSquadId: 'enemy',
+            text: `${replayRoleLabel} lane resolved`,
+            duration: 450,
+        });
     }
 
     logs.push(`\nCOMBAT SCORE: ${userTeamName} ${userCombatPoints} | ${cpuTeamName} ${cpuCombatPoints}`);
@@ -433,6 +642,13 @@ export function simulateMatchup(
     if (tiebreakLog) {
         logs.push(tiebreakLog);
     }
+    replayEvents.push({
+        type: 'final',
+        phase: 'resolution',
+        winnerSquadId: resolution.winnerId === 'user' ? 'player' : 'enemy',
+        text: `Final broadcast: ${resolution.winnerId === 'user' ? userTeamName : cpuTeamName} wins ${userScore} - ${cpuScore}.`,
+        duration: 1200,
+    });
 
     return {
         isWin: resolution.winnerId === 'user',
@@ -441,6 +657,7 @@ export function simulateMatchup(
         logs,
         userBreakdown,
         cpuBreakdown,
+        replayEvents,
     };
 }
 

@@ -185,7 +185,7 @@ export async function submitMatch(
     cpuTeam: (CharacterItem | null)[],
     rolesPlayed: RoleKey[] = [...BASE_ROLES]
 ) {
-    const { isWin, userScore, cpuScore, logs, userBreakdown, cpuBreakdown } = simulateMatchup(userTeam, cpuTeam, rolesPlayed, "You", "CPU");
+    const { isWin, userScore, cpuScore, logs, userBreakdown, cpuBreakdown, replayEvents } = simulateMatchup(userTeam, cpuTeam, rolesPlayed, "You", "CPU");
 
     // Only persist stats for authenticated (logged-in) users - guests play without being recorded
     if (userId) {
@@ -217,7 +217,7 @@ export async function submitMatch(
         revalidatePath('/');
     }
 
-    return { isWin, userScore, cpuScore, logs, userBreakdown, cpuBreakdown };
+    return { isWin, userScore, cpuScore, logs, userBreakdown, cpuBreakdown, replayEvents };
 }
 
 export async function getLeaderboard() {

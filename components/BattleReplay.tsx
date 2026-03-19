@@ -2,8 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createBaseStarMap, mockReplayScenario } from '@/components/battle-replay/mockData';
-import type { BattleReplayProps, ModifierKind, ReplayEvent, ReplayMode, RoleKey, SquadDefinition, SquadEntry, SynergyRow } from '@/components/battle-replay/types';
-import { HUD_METRICS, ROLES } from '@/components/battle-replay/types';
+import StarPips from '@/components/StarPips';
+import type { ModifierKind, ReplayEvent, ReplayMode, ReplayScenario, RoleKey, SquadDefinition, SquadEntry, SynergyRow } from '@/lib/replayTypes';
+import { HUD_METRICS, ROLES } from '@/lib/replayTypes';
+
+interface BattleReplayProps {
+    scenario?: ReplayScenario;
+    initialMode?: ReplayMode;
+    lockedMode?: ReplayMode;
+    showHeader?: boolean;
+    showModeToggle?: boolean;
+    embedded?: boolean;
+}
 
 function cx(...classes: Array<string | false | null | undefined>) {
     return classes.filter(Boolean).join(' ');
@@ -132,7 +142,7 @@ function CardTile({
         <div className="relative z-20 flex items-center justify-center" style={{ height: HUD_METRICS.cardHeight }}>
             {typeof starPopup === 'number' && (
                 <div className={cx('absolute left-1/2 top-0 z-40 -translate-x-1/2 -translate-y-1/2 border px-2 py-1 text-[10px] font-black shadow-[0_0_18px_rgba(255,255,255,0.16)]', starPopup > 0 ? 'border-cyan-200/60 bg-cyan-300 text-black' : 'border-fuchsia-200/60 bg-fuchsia-400 text-black')}>
-                    {starPopup > 0 ? `+${starPopup}★` : `${starPopup}★`}
+                    {starPopup > 0 ? '+★' : '-★'}
                 </div>
             )}
             <div className={cx('anime-card relative overflow-hidden border bg-black/80 transition-all duration-300 ease-out', isActiveRow ? 'border-cyan-300/50 shadow-[0_0_26px_rgba(34,211,238,0.16)]' : 'border-white/12', isTarget && 'animate-[battle-shake_240ms_linear_1]', fear && 'animate-[fear-shiver_360ms_ease-in-out_2]', lungeClass, resultState === 'win' && 'ring-1 ring-cyan-300 shadow-[0_0_24px_rgba(34,211,238,0.26)]', resultState === 'lose' && 'opacity-60 saturate-50')} style={{ width: HUD_METRICS.cardWidth, height: HUD_METRICS.cardHeight }}>
@@ -146,10 +156,15 @@ function CardTile({
                 {modifierKind === 'support' && <div className="absolute inset-0 animate-pulse border border-cyan-200/80 bg-cyan-300/10" />}
                 {modifierKind === 'aura' && <div className="absolute inset-0 animate-pulse border border-violet-200/80 bg-violet-400/12" />}
                 {modifierKind === 'traitor' && <div className="absolute inset-0 animate-pulse border border-fuchsia-200/80 bg-fuchsia-400/12" />}
-                <div className={cx('absolute right-1.5 top-1.5 border px-1.5 py-1 text-[8px] font-black shadow-lg', modifierKind === 'aura' || modifierKind === 'traitor' ? 'border-fuchsia-200/50 bg-fuchsia-300 text-black' : 'border-yellow-100/70 bg-yellow-300 text-black')}>★{currentStars}</div>
+                <div className={cx('absolute right-1.5 top-1.5 border px-1.5 py-1 shadow-lg', modifierKind === 'aura' || modifierKind === 'traitor' ? 'border-fuchsia-200/50 bg-fuchsia-300' : 'border-yellow-100/70 bg-yellow-300')}>
+                    <StarPips count={currentStars} tone={modifierKind === 'aura' || modifierKind === 'traitor' ? 'fuchsia' : 'gold'} />
+                </div>
                 <div className="absolute inset-x-1.5 bottom-1.5 bg-black/42 px-1.5 py-1">
                     <div className="truncate text-[9px] font-black leading-none text-white">{card.name}</div>
                     <div className="mt-0.5 truncate text-[8px] uppercase tracking-[0.12em] text-white/60">{card.animeUniverse}</div>
+                    {card.verificationReason && (
+                        <div className="mt-1 truncate text-[7px] uppercase tracking-[0.12em] text-yellow-200/80">{card.verificationReason}</div>
+                    )}
                 </div>
                 {traitorDefected && role === 'traitor' && <div className="absolute inset-x-2 bottom-9 border border-fuchsia-300/40 bg-fuchsia-400/16 px-1.5 py-1 text-center text-[7px] font-black uppercase tracking-[0.16em] text-fuchsia-100">Defected</div>}
             </div>
@@ -183,7 +198,7 @@ function SquadColumn({
                 <div className={cx('relative z-20 mb-3 flex items-center justify-between', side === 'left' ? 'text-left' : 'text-right')} style={{ height: HUD_METRICS.headerHeight }}>
                     <div>
                         <div className={cx('text-[10px] font-black uppercase tracking-[0.36em]', squad.accent === 'cyan' ? 'text-cyan-300/88' : 'text-fuchsia-300/88')}>{squad.title}</div>
-                        <div className="mt-1 text-[16px] font-black uppercase tracking-[0.08em] text-white">{squad.id === 'player' ? 'Carl P' : squad.id.replace('enemy-', 'Guest ')}</div>
+                        <div className="mt-1 text-[16px] font-black uppercase tracking-[0.08em] text-white">{squad.displayName ?? (squad.id === 'player' ? 'Carl P' : squad.id.replace('enemy-', 'Guest '))}</div>
                     </div>
                     <div className={cx('hud-chip border px-3 py-2 text-[18px] font-black transition', squad.accent === 'cyan' ? 'border-cyan-300/30 bg-cyan-400/10 text-cyan-100' : 'border-fuchsia-300/30 bg-fuchsia-400/10 text-fuchsia-100', scoreFlash && 'scale-105 shadow-[0_0_26px_rgba(34,211,238,0.20)]')}>{score}</div>
                 </div>
@@ -261,7 +276,14 @@ function BattleLog({ visibleLogs, activeIndex, totalEvents, dock }: { visibleLog
     );
 }
 
-export default function BattleReplay({ scenario = mockReplayScenario, initialMode = 'single' }: BattleReplayProps) {
+export default function BattleReplay({
+    scenario = mockReplayScenario,
+    initialMode = 'single',
+    lockedMode,
+    showHeader = true,
+    showModeToggle = true,
+    embedded = false,
+}: BattleReplayProps) {
     const [mode, setMode] = useState<ReplayMode>(initialMode);
     const [isPlaying, setIsPlaying] = useState(true);
     const [speed, setSpeed] = useState<1 | 2 | 4>(1);
@@ -274,7 +296,8 @@ export default function BattleReplay({ scenario = mockReplayScenario, initialMod
     const [starPopupValue, setStarPopupValue] = useState<number | null>(null);
     const [currentTargetSquadId, setCurrentTargetSquadId] = useState<string>(scenario.opponents[0]?.id ?? '');
 
-    const visibleOpponents = useMemo(() => (mode === 'single' ? scenario.opponents.slice(0, 1) : scenario.opponents), [mode, scenario.opponents]);
+    const effectiveMode = lockedMode ?? mode;
+    const visibleOpponents = useMemo(() => (effectiveMode === 'single' ? scenario.opponents.slice(0, 1) : scenario.opponents), [effectiveMode, scenario.opponents]);
     const currentEvent = activeIndex >= 0 ? scenario.events[activeIndex] : null;
     const combatStartIndex = useMemo(() => scenario.events.findIndex((event) => event.type === 'phase-start' && event.phase === 'combat'), [scenario.events]);
     const combatStarted = combatStartIndex !== -1 && activeIndex >= combatStartIndex;
@@ -288,7 +311,7 @@ export default function BattleReplay({ scenario = mockReplayScenario, initialMod
 
     useEffect(() => {
         setCurrentTargetSquadId(visibleOpponents[0]?.id ?? '');
-    }, [mode, visibleOpponents]);
+    }, [effectiveMode, visibleOpponents]);
 
     useEffect(() => {
         if (!isPlaying || activeIndex >= scenario.events.length - 1) return;
@@ -337,10 +360,10 @@ export default function BattleReplay({ scenario = mockReplayScenario, initialMod
         setCurrentTargetSquadId(scenario.opponents[0]?.id ?? '');
     }
 
-    const totalStageWidth = HUD_METRICS.squadColumnWidth + HUD_METRICS.laneWidth + (visibleOpponents.length * HUD_METRICS.squadColumnWidth) + ((visibleOpponents.length + 1) * HUD_METRICS.stageGap) + (mode === 'single' ? HUD_METRICS.logWidth + HUD_METRICS.stageGap : 0);
+    const totalStageWidth = HUD_METRICS.squadColumnWidth + HUD_METRICS.laneWidth + (visibleOpponents.length * HUD_METRICS.squadColumnWidth) + ((visibleOpponents.length + 1) * HUD_METRICS.stageGap) + (effectiveMode === 'single' ? HUD_METRICS.logWidth + HUD_METRICS.stageGap : 0);
 
     return (
-        <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.18),_transparent_22%),linear-gradient(180deg,#03050c_0%,#07101a_42%,#04070f_100%)] text-white">
+        <div className={cx('relative overflow-hidden text-white', embedded ? '' : 'min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.18),_transparent_22%),linear-gradient(180deg,#03050c_0%,#07101a_42%,#04070f_100%)]')}>
             <style jsx global>{`
                 @keyframes battle-shake { 0% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-4px); } 100% { transform: translateX(0); } }
                 @keyframes fear-shiver { 0%,100% { transform: translateX(0) scale(1); } 20% { transform: translateX(-2px) translateY(-2px) scale(0.985); } 40% { transform: translateX(2px) translateY(1px) scale(0.985); } 60% { transform: translateX(-2px) translateY(0) scale(0.985); } 80% { transform: translateX(2px) translateY(-1px) scale(0.985); } }
@@ -351,17 +374,23 @@ export default function BattleReplay({ scenario = mockReplayScenario, initialMod
             `}</style>
             <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(34,211,238,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.04)_1px,transparent_1px)] [background-size:72px_72px]" />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-[170px] animate-[scanline_8s_linear_infinite] bg-gradient-to-b from-transparent via-cyan-300/8 to-transparent" />
-            <div className="relative z-10 mx-auto max-w-[1680px] p-4">
+            <div className={cx('relative z-10 mx-auto max-w-[1760px]', embedded ? 'p-0' : 'p-4')}>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/88">Anime Ops // Battle Replay</div>
-                        <h1 className="mt-1 text-[28px] font-black uppercase tracking-[0.14em] text-white">{mode === 'single' ? 'Single Battle Stage' : 'Multiplayer Combat Feed'}</h1>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="hud-panel flex items-center bg-[#07101d]/92 p-1">
-                            <button type="button" onClick={() => { setMode('single'); resetReplay(true); }} className={cx('hud-chip px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] transition', mode === 'single' ? 'bg-cyan-300 text-black' : 'bg-white/5 text-white/75 hover:bg-cyan-400/10')}>Single</button>
-                            <button type="button" onClick={() => { setMode('multiplayer'); resetReplay(true); }} className={cx('hud-chip px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] transition', mode === 'multiplayer' ? 'bg-fuchsia-300 text-black' : 'bg-white/5 text-white/75 hover:bg-fuchsia-400/10')}>Multiplayer</button>
+                    {showHeader ? (
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/88">Anime Ops // Battle Replay</div>
+                            <h1 className="mt-1 text-[28px] font-black uppercase tracking-[0.14em] text-white">{effectiveMode === 'single' ? 'Single Battle Stage' : 'Multiplayer Combat Feed'}</h1>
                         </div>
+                    ) : (
+                        <div />
+                    )}
+                    <div className="flex flex-wrap items-center gap-3">
+                        {showModeToggle && !lockedMode && (
+                            <div className="hud-panel flex items-center bg-[#07101d]/92 p-1">
+                                <button type="button" onClick={() => { setMode('single'); resetReplay(true); }} className={cx('hud-chip px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] transition', effectiveMode === 'single' ? 'bg-cyan-300 text-black' : 'bg-white/5 text-white/75 hover:bg-cyan-400/10')}>Single</button>
+                                <button type="button" onClick={() => { setMode('multiplayer'); resetReplay(true); }} className={cx('hud-chip px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] transition', effectiveMode === 'multiplayer' ? 'bg-fuchsia-300 text-black' : 'bg-white/5 text-white/75 hover:bg-fuchsia-400/10')}>Multiplayer</button>
+                            </div>
+                        )}
                         <div className="hud-panel flex items-center gap-1.5 bg-[#07101d]/92 p-1.5">
                             <ControlButton icon="play" label="Play" active={isPlaying} onClick={() => setIsPlaying(true)} />
                             <ControlButton icon="pause" label="Pause" onClick={() => setIsPlaying(false)} />
@@ -385,7 +414,7 @@ export default function BattleReplay({ scenario = mockReplayScenario, initialMod
                 </div>
                 <div className="space-y-4">
                     <div className="hud-panel overflow-x-auto border border-cyan-300/16 bg-[#040913]/92 p-4">
-                        {mode === 'single' ? (
+                        {effectiveMode === 'single' ? (
                             <div className="grid items-start" style={{ minWidth: totalStageWidth, gridTemplateColumns: `${HUD_METRICS.squadColumnWidth}px ${HUD_METRICS.laneWidth}px ${HUD_METRICS.squadColumnWidth}px ${HUD_METRICS.logWidth}px`, gap: HUD_METRICS.stageGap }}>
                                 <SquadColumn squad={scenario.player} side="left" entries={playerEntries} activeRole={currentEvent?.role} currentStars={starMap} actorId={currentEvent?.actorId} targetId={currentEvent?.targetId} currentEvent={currentEvent} score={scoreMap[scenario.player.id] ?? 0} isFocusedTarget={false} scoreFlash={scoreFlashSquadId === scenario.player.id} starPopupTargetId={starPopupTargetId} starPopupValue={starPopupValue} />
                                 <RoleLane activeRole={currentEvent?.role} opponentCount={1} />
@@ -402,7 +431,7 @@ export default function BattleReplay({ scenario = mockReplayScenario, initialMod
                             </div>
                         )}
                     </div>
-                    {mode === 'multiplayer' && <BattleLog visibleLogs={visibleLogs} activeIndex={activeIndex} totalEvents={scenario.events.length} dock="bottom" />}
+                    {effectiveMode === 'multiplayer' && <BattleLog visibleLogs={visibleLogs} activeIndex={activeIndex} totalEvents={scenario.events.length} dock="bottom" />}
                 </div>
             </div>
         </div>
