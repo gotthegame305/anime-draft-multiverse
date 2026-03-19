@@ -1,177 +1,267 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import CharacterCard from './CharacterCard';
-import { getCharacters, submitMatch, CharacterItem } from '@/app/actions';
-import { BASE_ROLES, ROLE_DISPLAY_NAMES, RoleKey } from '@/lib/gameConfig';
+import SynergyBoard from '@/components/SynergyBoard';
+import { getCharacters, submitMatch, type CharacterItem } from '@/app/actions';
+import type { ScoreBreakdown } from '@/lib/battleEngine';
+import { HUD_METRICS } from '@/components/battle-replay/types';
+import { BASE_ROLES, ROLE_DISPLAY_NAMES, type RoleKey } from '@/lib/gameConfig';
+import { evaluateSynergyBoard } from '@/lib/synergyBoard';
 
 const MAX_SKIPS = 1;
 
+interface MatchResult {
+    isWin: boolean;
+    userScore: number;
+    cpuScore: number;
+    logs: string[];
+    userBreakdown: ScoreBreakdown;
+    cpuBreakdown: ScoreBreakdown;
+}
+
+function cx(...classes: Array<string | false | null | undefined>) {
+    return classes.filter(Boolean).join(' ');
+}
+
+function formatBreakdownSummary(breakdown: ScoreBreakdown) {
+    return `combat ${breakdown.combatPoints} | stars ${breakdown.rawStarPoints} | universe ${breakdown.universeBonusPoints} | fit ${breakdown.bestRolePoints} | sweep ${breakdown.starSweepPoints}`;
+}
+
+function roleLabel(role: RoleKey) {
+    return ROLE_DISPLAY_NAMES[role];
+}
+
+function getLaneExtents() {
+    const leftInset = HUD_METRICS.squadPaddingX + ((HUD_METRICS.squadColumnWidth - (HUD_METRICS.squadPaddingX * 2) - HUD_METRICS.cardWidth) / 2);
+    const leftReach = HUD_METRICS.squadColumnWidth + HUD_METRICS.stageGap - leftInset;
+    const rightReach = HUD_METRICS.stageGap + leftInset + HUD_METRICS.cardWidth;
+    return { leftReach, rightReach };
+}
+
+function ScorePanel({ label, value, tone, flash = false }: { label: string; value: string; tone: 'cyan' | 'fuchsia' | 'amber'; flash?: boolean }) {
+    const toneClass = tone === 'cyan'
+        ? 'border-cyan-300/25 bg-[#081120]/92 text-cyan-100'
+        : tone === 'fuchsia'
+            ? 'border-fuchsia-300/25 bg-[#081120]/92 text-fuchsia-100'
+            : 'border-yellow-300/35 bg-[#081120]/92 text-yellow-100';
+
+    return (
+        <div className={cx('hud-panel px-4 py-3 transition duration-200', toneClass, flash && 'scale-[1.02] shadow-[0_0_28px_rgba(34,211,238,0.18)]')}>
+            <div className="text-[9px] font-black uppercase tracking-[0.34em] text-white/55">{label}</div>
+            <div className="mt-1 text-[17px] font-black uppercase tracking-[0.08em]">{value}</div>
+        </div>
+    );
+}
+
+function SquadSlot({
+    char,
+    role,
+    accent,
+    emptyLabel,
+    clickable,
+    onClick,
+    highlight,
+    grayscale = false,
+}: {
+    char: CharacterItem | null;
+    role: RoleKey;
+    accent: 'cyan' | 'fuchsia';
+    emptyLabel: string;
+    clickable?: boolean;
+    onClick?: () => void;
+    highlight?: boolean;
+    grayscale?: boolean;
+}) {
+    const accentBorder = accent === 'cyan' ? 'border-cyan-300/28 bg-[#07101d]/94' : 'border-fuchsia-300/28 bg-[#07101d]/94';
+    const glow = accent === 'cyan' ? 'hover:border-cyan-300 hover:shadow-[0_0_22px_rgba(34,211,238,0.20)]' : 'hover:border-fuchsia-300 hover:shadow-[0_0_22px_rgba(217,70,239,0.20)]';
+    const roleStars = char ? Number(char.stats.roleStats[role] || 1) : 0;
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={!clickable}
+            className={cx(
+                'relative flex items-center justify-center transition-all',
+                clickable ? 'cursor-pointer' : 'cursor-default'
+            )}
+            style={{ height: HUD_METRICS.cardHeight }}
+        >
+            <div
+                className={cx(
+                    'anime-card relative overflow-hidden border transition-all duration-200',
+                    accentBorder,
+                    clickable && glow,
+                    highlight && 'border-yellow-300/70 shadow-[0_0_28px_rgba(250,204,21,0.18)]',
+                    !char && 'border-dashed border-white/12 bg-black/30'
+                )}
+                style={{ width: HUD_METRICS.cardWidth, height: HUD_METRICS.cardHeight }}
+            >
+                {char ? (
+                    <>
+                        <Image src={char.imageUrl} alt={char.name} fill className={cx('object-cover', grayscale && 'grayscale')} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent" />
+                        <div className="absolute inset-0 bg-[linear-gradient(140deg,rgba(34,211,238,0.14),transparent_30%,transparent_70%,rgba(217,70,239,0.16))]" />
+                        <div className="absolute left-0 top-0 h-5 w-5 border-l-[3px] border-t-[3px] border-cyan-300/60" />
+                        <div className="absolute bottom-0 right-0 h-5 w-5 border-b-[3px] border-r-[3px] border-fuchsia-300/55" />
+                        <div className="absolute left-0 top-0 h-[2px] w-full bg-cyan-300/75" />
+                        <div className="absolute right-1.5 top-1.5 border border-yellow-100/70 bg-yellow-300 px-1.5 py-1 text-[8px] font-black text-black shadow-lg">
+                            ★{roleStars}
+                        </div>
+                        <div className="absolute inset-x-1.5 bottom-1.5 bg-black/42 px-1.5 py-1">
+                            <div className="truncate text-[9px] font-black leading-none text-white">{char.name}</div>
+                            <div className="mt-0.5 truncate text-[8px] uppercase tracking-[0.12em] text-white/60">{char.animeUniverse}</div>
+                            {char.stats.roleStats.reason && (
+                                <div className="mt-1 truncate text-[7px] uppercase tracking-[0.12em] text-yellow-200/80">{char.stats.roleStats.reason}</div>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(160deg,rgba(34,211,238,0.05),transparent_55%,rgba(217,70,239,0.08))] px-3 text-center text-[10px] font-black uppercase tracking-[0.16em] text-white/34">
+                        {emptyLabel}
+                    </div>
+                )}
+            </div>
+        </button>
+    );
+}
+
+function RoleLane({ activeRoles, highlightedRoles }: { activeRoles: RoleKey[]; highlightedRoles: RoleKey[] }) {
+    const { leftReach, rightReach } = getLaneExtents();
+
+    return (
+        <div className="relative z-0 flex min-h-[900px] flex-col border border-cyan-300/18 bg-[linear-gradient(180deg,rgba(5,11,20,0.98),rgba(2,7,15,0.98))] px-3 py-3 shadow-[0_20px_44px_rgba(0,0,0,0.46)]" style={{ overflow: 'visible' }}>
+            <div className="mb-3 flex items-center justify-center text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/78" style={{ height: HUD_METRICS.headerHeight }}>Battle Lane</div>
+            <div className="flex flex-col items-center" style={{ gap: HUD_METRICS.rowGap }}>
+                {activeRoles.map((role) => {
+                    const isHighlighted = highlightedRoles.includes(role);
+                    const isTraitor = role === 'traitor';
+                    const bandClass = isHighlighted
+                        ? isTraitor
+                            ? 'border-fuchsia-300/50 bg-[linear-gradient(90deg,rgba(244,114,182,0.14),rgba(4,10,18,0.02),rgba(244,114,182,0.14))]'
+                            : 'border-cyan-300/50 bg-[linear-gradient(90deg,rgba(34,211,238,0.14),rgba(4,10,18,0.02),rgba(34,211,238,0.14))]'
+                        : 'border-white/10 bg-[linear-gradient(90deg,rgba(255,255,255,0.03),transparent,rgba(255,255,255,0.03))]';
+                    const lineClass = isHighlighted
+                        ? isTraitor
+                            ? 'bg-fuchsia-300/85 shadow-[0_0_12px_rgba(244,114,182,0.26)]'
+                            : 'bg-cyan-300/85 shadow-[0_0_12px_rgba(34,211,238,0.26)]'
+                        : 'bg-white/16';
+                    const labelClass = isHighlighted
+                        ? isTraitor
+                            ? 'border-fuchsia-300 bg-fuchsia-400/14 text-fuchsia-100'
+                            : 'border-cyan-300 bg-cyan-400/12 text-cyan-100'
+                        : isTraitor
+                            ? 'border-fuchsia-300/20 bg-[#0b1322] text-fuchsia-200/70'
+                            : 'border-white/10 bg-[#0b1322] text-white/56';
+
+                    return (
+                        <div key={role} className="relative flex w-full items-center justify-center" style={{ height: HUD_METRICS.cardHeight, overflow: 'visible' }}>
+                            <div className={cx('pointer-events-none absolute top-1/2 h-[118px] -translate-y-1/2 border-y', bandClass)} style={{ left: -leftReach, right: -rightReach }} />
+                            <div className={cx('pointer-events-none absolute top-1/2 h-px -translate-y-1/2', lineClass)} style={{ left: -leftReach, right: -rightReach }} />
+                            <div className={cx('hud-chip relative z-20 border px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.12em]', labelClass)}>
+                                {roleLabel(role)}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 export default function DraftGrid() {
-    // Game State
     const [allCharacters, setAllCharacters] = useState<CharacterItem[]>([]);
     const [characterPool, setCharacterPool] = useState<CharacterItem[]>([]);
-
-    // Filter State
     const [availableUniverses, setAvailableUniverses] = useState<string[]>([]);
     const [selectedUniverses, setSelectedUniverses] = useState<string[]>([]);
-
-    // Dynamic Modes
     const [playedModes, setPlayedModes] = useState<string[]>([]);
     const [activeRoles, setActiveRoles] = useState<RoleKey[]>([...BASE_ROLES]);
-
     const [userTeam, setUserTeam] = useState<(CharacterItem | null)[]>([null, null, null, null, null]);
     const [cpuTeam, setCpuTeam] = useState<(CharacterItem | null)[]>([null, null, null, null, null]);
-
-
     const [isUserTurn, setIsUserTurn] = useState(true);
     const [currentDraw, setCurrentDraw] = useState<CharacterItem | null>(null);
     const [skipsRemaining, setSkipsRemaining] = useState(MAX_SKIPS);
-
-
-    const [gameStatus, setGameStatus] = useState<'LOADING' | 'FILTERING' | 'READY' | 'DRAFTING' | 'GRADING' | 'FINISHED' | 'ERROR'>('LOADING');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [result, setResult] = useState<any>(null);
+    const [gameStatus, setGameStatus] = useState<'LOADING' | 'FILTERING' | 'DRAFTING' | 'GRADING' | 'FINISHED' | 'ERROR'>('LOADING');
+    const [result, setResult] = useState<MatchResult | null>(null);
     const [errorMsg, setErrorMsg] = useState('');
 
-    // Initialize Pool
+    const isGameFull = userTeam.every(Boolean) && cpuTeam.every(Boolean);
+    const liveSynergies = useMemo(() => evaluateSynergyBoard(userTeam, activeRoles), [activeRoles, userTeam]);
+    const highlightedRoles = useMemo(() => {
+        if (!currentDraw) return [];
+        const bestStar = activeRoles.reduce((best, role) => Math.max(best, Number(currentDraw.stats.roleStats[role] || 0)), 0);
+        return activeRoles.filter((role) => Number(currentDraw.stats.roleStats[role] || 0) === bestStar);
+    }, [activeRoles, currentDraw]);
+
     useEffect(() => {
         let mounted = true;
         async function init() {
             try {
-                console.log("Fetching characters...");
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timed out')), 8000));
+                const chars = await Promise.race([getCharacters(500), timeoutPromise]) as CharacterItem[];
 
-                // create a timeout promise
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error("Connection timed out")), 8000)
-                );
+                if (!mounted) return;
+                if (!chars || chars.length === 0) throw new Error('No characters found in database.');
 
-                // race against fetch
-                const chars = await Promise.race([
-                    getCharacters(500), // Fetch a large pool
-                    timeoutPromise
-                ]) as CharacterItem[];
-
-                if (mounted) {
-                    if (chars && chars.length > 0) {
-                        setAllCharacters(chars);
-
-                        // Extract Universes
-                        const universes = Array.from(new Set(chars.map(c => c.animeUniverse))).sort();
-                        setAvailableUniverses(universes);
-                        setSelectedUniverses(universes); // Default select all
-
-                        setGameStatus('FILTERING');
-                    } else {
-                        throw new Error("No characters found in database.");
-                    }
-                }
+                setAllCharacters(chars);
+                const universes = Array.from(new Set(chars.map((character) => character.animeUniverse))).sort();
+                setAvailableUniverses(universes);
+                setSelectedUniverses(universes);
+                setGameStatus('FILTERING');
             } catch (error) {
-                console.error("Error initializing draft:", error);
-                if (mounted) {
-                    setErrorMsg(error instanceof Error ? error.message : "Failed to load");
-                    setGameStatus('ERROR');
-                }
+                if (!mounted) return;
+                setErrorMsg(error instanceof Error ? error.message : 'Failed to load');
+                setGameStatus('ERROR');
             }
         }
         init();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+        };
     }, []);
 
-    const drawCardFromPool = () => {
-        const pool = [...characterPool];
-        if (pool.length === 0) return null;
-        const pick = pool.shift();
-        setCharacterPool(pool);
-        return pick;
-    };
-
-    // CPU Turn Logic
     useEffect(() => {
         if (!isUserTurn && gameStatus === 'DRAFTING') {
-            const emptyCpuSlots = cpuTeam.map((c, i) => c === null ? i : -1).filter(i => i !== -1);
+            const emptyCpuSlots = cpuTeam.map((char, index) => (char === null ? index : -1)).filter((index) => index !== -1);
+            if (emptyCpuSlots.length === 0) return;
 
-            if (emptyCpuSlots.length > 0) {
-                const timer = setTimeout(() => {
-                    const pick = drawCardFromPool();
-                    if (pick) {
-                        // CPU Simple Logic: Pick random empty slot
-                        const randomSlotIndex = emptyCpuSlots[Math.floor(Math.random() * emptyCpuSlots.length)];
+            const timer = setTimeout(() => {
+                const pool = [...characterPool];
+                const pick = pool.shift() || null;
+                setCharacterPool(pool);
+                if (!pick) return;
 
-                        setCpuTeam(prev => {
-                            const newTeam = [...prev];
-                            newTeam[randomSlotIndex] = pick;
-                            return newTeam;
-                        });
-                        setIsUserTurn(true);
-                        setCurrentDraw(null);
-                    }
-                }, 1500);
-                return () => clearTimeout(timer);
-            }
+                const randomSlotIndex = emptyCpuSlots[Math.floor(Math.random() * emptyCpuSlots.length)];
+                setCpuTeam((prev) => {
+                    const next = [...prev];
+                    next[randomSlotIndex] = pick;
+                    return next;
+                });
+                setIsUserTurn(true);
+                setCurrentDraw(null);
+            }, 1500);
+
+            return () => clearTimeout(timer);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isUserTurn, gameStatus, cpuTeam, characterPool]);
 
-    // Check for Game End
-    const isGameFull = userTeam.every(Boolean) && cpuTeam.every(Boolean);
+        return undefined;
+    }, [characterPool, cpuTeam, gameStatus, isUserTurn]);
 
+    function toggleUniverse(universe: string) {
+        setSelectedUniverses((prev) => (prev.includes(universe) ? prev.filter((item) => item !== universe) : [...prev, universe]));
+    }
 
-    const handleUserSummon = () => {
-        if (!isUserTurn || gameStatus !== 'DRAFTING' || currentDraw) return;
-        const char = drawCardFromPool();
-        if (char) setCurrentDraw(char);
-    };
-
-    const handleSkip = () => {
-        if (!currentDraw || skipsRemaining <= 0) return;
-        setSkipsRemaining(prev => prev - 1);
-        setCurrentDraw(null);
-        // Auto re-summon
-        const newChar = drawCardFromPool();
-        if (newChar) setCurrentDraw(newChar);
-    };
-
-    const handleSlotClick = (index: number) => {
-        if (!isUserTurn || !currentDraw || userTeam[index] !== null) return;
-
-        setUserTeam(prev => {
-            const newTeam = [...prev];
-            newTeam[index] = currentDraw;
-            return newTeam;
-        });
-
-        setCurrentDraw(null); // Clear active card
-        setIsUserTurn(false); // Pass turn
-    };
-
-    const toggleUniverse = (universe: string) => {
-        setSelectedUniverses(prev =>
-            prev.includes(universe)
-                ? prev.filter(u => u !== universe)
-                : [...prev, universe]
-        );
-    };
-
-    const selectAllUniverses = () => setSelectedUniverses(availableUniverses);
-    const deselectAllUniverses = () => setSelectedUniverses([]);
-
-    const confirmDeck = () => {
+    function confirmDeck() {
         if (selectedUniverses.length === 0) {
-            alert("Please select at least one universe!");
+            window.alert('Please select at least one universe.');
             return;
         }
 
-        // Filter and Shuffle Logic
-        const filtered = allCharacters.filter(c => 
-            selectedUniverses.includes(c.animeUniverse) && 
-            c.stats.roleStats.reason === "Verified Database Stats"
-        );
-        const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, 50); // Take top 50 shuffled
-
+        const filtered = allCharacters.filter((character) => selectedUniverses.includes(character.animeUniverse) && character.stats.roleStats.reason === 'Verified Database Stats');
+        const shuffled = [...filtered].sort(() => 0.5 - Math.random()).slice(0, 50);
         if (shuffled.length < 10) {
-            alert(`Pool too small! Only ${shuffled.length} characters found. Select more universes.`);
+            window.alert(`Pool too small! Only ${shuffled.length} characters found. Select more universes.`);
             return;
         }
 
@@ -184,16 +274,14 @@ export default function DraftGrid() {
             if (roll < 0.5) modeToPlay = 'standard';
             else if (roll < 0.75) modeToPlay = 'aura';
             else modeToPlay = 'traitor';
+        } else if (!playedModes.includes('aura') && !playedModes.includes('traitor')) {
+            modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
+        } else if (playedModes.includes('aura') && !playedModes.includes('traitor')) {
+            modeToPlay = 'traitor';
+        } else if (playedModes.includes('traitor') && !playedModes.includes('aura')) {
+            modeToPlay = 'aura';
         } else {
-            if (!playedModes.includes('aura') && !playedModes.includes('traitor')) {
-                modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
-            } else if (playedModes.includes('aura') && !playedModes.includes('traitor')) {
-                modeToPlay = 'traitor';
-            } else if (playedModes.includes('traitor') && !playedModes.includes('aura')) {
-                modeToPlay = 'aura';
-            } else {
-                modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
-            }
+            modeToPlay = Math.random() < 0.5 ? 'aura' : 'traitor';
         }
 
         if (modeToPlay === 'aura') modifier = 'aura';
@@ -202,246 +290,288 @@ export default function DraftGrid() {
         const roles = [...BASE_ROLES] as RoleKey[];
         if (modifier) roles.push(modifier);
 
-        setPlayedModes(prev => [...prev, modeToPlay]);
+        setPlayedModes((prev) => [...prev, modeToPlay]);
         setActiveRoles(roles);
         setUserTeam(new Array(roles.length).fill(null));
         setCpuTeam(new Array(roles.length).fill(null));
-
         setCharacterPool(shuffled);
+        setCurrentDraw(null);
+        setSkipsRemaining(MAX_SKIPS);
+        setResult(null);
+        setIsUserTurn(true);
         setGameStatus('DRAFTING');
-    };
+    }
 
+    function handleUserSummon() {
+        if (!isUserTurn || gameStatus !== 'DRAFTING' || currentDraw) return;
+        const pool = [...characterPool];
+        const pick = pool.shift() || null;
+        setCharacterPool(pool);
+        if (pick) setCurrentDraw(pick);
+    }
 
-    const handleGameEnd = async () => {
+    function handleSkip() {
+        if (!currentDraw || skipsRemaining <= 0) return;
+        setSkipsRemaining((prev) => prev - 1);
+        const pool = [...characterPool];
+        const pick = pool.shift() || null;
+        setCharacterPool(pool);
+        setCurrentDraw(pick);
+    }
+
+    function handleSlotClick(index: number) {
+        if (!isUserTurn || !currentDraw || userTeam[index] !== null) return;
+        setUserTeam((prev) => {
+            const next = [...prev];
+            next[index] = currentDraw;
+            return next;
+        });
+        setCurrentDraw(null);
+        setIsUserTurn(false);
+    }
+
+    async function handleGameEnd() {
         setGameStatus('GRADING');
         try {
-            const res = await submitMatch('user-123', userTeam, cpuTeam, activeRoles);
-            setResult(res);
-            setGameStatus('FINISHED');
-        } catch (e) {
-            console.error(e);
-            setGameStatus('FINISHED');
-            setResult({ isWin: false, logs: ["Error calculating results. Please try again."] });
+            const response = await submitMatch('user-123', userTeam, cpuTeam, activeRoles);
+            setResult(response as MatchResult);
+        } catch {
+            setResult({
+                isWin: false,
+                userScore: 0,
+                cpuScore: 0,
+                logs: ['Error calculating results. Please try again.'],
+                userBreakdown: { combatPoints: 0, rawStarPoints: 0, universeBonusPoints: 0, bestRolePoints: 0, starSweepPoints: 0, totalPoints: 0 },
+                cpuBreakdown: { combatPoints: 0, rawStarPoints: 0, universeBonusPoints: 0, bestRolePoints: 0, starSweepPoints: 0, totalPoints: 0 },
+            });
         }
-    };
+        setGameStatus('FINISHED');
+    }
 
-    if (gameStatus === 'ERROR') return (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-            <div className="text-red-500 font-bold text-xl">⚠️ ERROR: {errorMsg}</div>
-            <button onClick={() => window.location.reload()} className="bg-white text-black px-6 py-2 rounded-full font-bold">RETRY</button>
-        </div>
-    );
+    function resetToFilter() {
+        setCurrentDraw(null);
+        setSkipsRemaining(MAX_SKIPS);
+        setResult(null);
+        setGameStatus('FILTERING');
+    }
 
-    if (gameStatus === 'LOADING') return <div className="text-white text-center py-20 animate-pulse font-mono">LOADING DATA (Please Wait)...</div>;
+    function handleRematch() {
+        setCurrentDraw(null);
+        setSkipsRemaining(MAX_SKIPS);
+        setResult(null);
+        confirmDeck();
+    }
 
-    // ----- UI RENDER -----
+    if (gameStatus === 'ERROR') {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-[#03050c] px-4 text-white">
+                <div className="hud-panel w-full max-w-md border border-red-400/30 bg-[#08111c]/95 p-8 text-center">
+                    <div className="text-[11px] font-black uppercase tracking-[0.36em] text-red-300/80">System Fault</div>
+                    <h1 className="mt-2 text-3xl font-black uppercase tracking-[0.08em] text-white">Draft Feed Offline</h1>
+                    <p className="mt-4 text-sm text-white/70">{errorMsg}</p>
+                    <button type="button" onClick={() => window.location.reload()} className="hud-chip mt-6 border border-cyan-300/30 bg-cyan-400/10 px-6 py-3 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (gameStatus === 'LOADING') {
+        return <div className="flex min-h-screen items-center justify-center bg-[#03050c] text-sm font-black uppercase tracking-[0.42em] text-cyan-300/70">Loading Draft Feed...</div>;
+    }
 
     if (gameStatus === 'FILTERING') {
         return (
-            <div className="w-full max-w-4xl mx-auto p-8 bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl mt-10">
-                <h1 className="text-4xl font-black text-white text-center mb-2">SETUP YOUR DECK</h1>
-                <p className="text-slate-400 text-center mb-8">Select which Anime Universes will appear in the draft pool.</p>
+            <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.18),_transparent_22%),linear-gradient(180deg,#03050c_0%,#07101a_42%,#04070f_100%)] px-4 py-10 text-white">
+                <div className="mx-auto max-w-5xl">
+                    <div className="mb-6 text-center">
+                        <div className="text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/88">Single Player // Deck Setup</div>
+                        <h1 className="mt-2 text-4xl font-black uppercase tracking-[0.12em] text-white">Configure The Draft Feed</h1>
+                        <p className="mt-3 text-sm text-white/60">Select the universes that can appear in your single-player run.</p>
+                    </div>
 
-                <div className="flex justify-center gap-4 mb-6">
-                    <button onClick={selectAllUniverses} className="text-sm bg-slate-800 hover:bg-slate-700 text-blue-300 px-4 py-2 rounded">Select All</button>
-                    <button onClick={deselectAllUniverses} className="text-sm bg-slate-800 hover:bg-slate-700 text-red-300 px-4 py-2 rounded">Deselect All</button>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                    {availableUniverses.map(universe => (
-                        <div
-                            key={universe}
-                            onClick={() => toggleUniverse(universe)}
-                            className={`
-                                cursor-pointer p-4 rounded-xl border-2 transition-all flex items-center justify-between
-                                ${selectedUniverses.includes(universe)
-                                    ? 'bg-blue-900/30 border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]'
-                                    : 'bg-slate-950 border-slate-800 opacity-60 hover:opacity-100'}
-                            `}
-                        >
-                            <span className="font-bold text-white truncate">{universe}</span>
-                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedUniverses.includes(universe) ? 'bg-blue-500 border-blue-500' : 'border-slate-600'}`}>
-                                {selectedUniverses.includes(universe) && <span className="text-white text-xs">✓</span>}
+                    <div className="hud-panel border border-cyan-300/16 bg-[#050c16]/92 p-6">
+                        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                            <ScorePanel label="Universes Selected" value={`${selectedUniverses.length}`} tone="cyan" flash={false} />
+                            <div className="flex flex-wrap gap-2">
+                                <button type="button" onClick={() => setSelectedUniverses(availableUniverses)} className="hud-chip border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Select All</button>
+                                <button type="button" onClick={() => setSelectedUniverses([])} className="hud-chip border border-fuchsia-300/20 bg-fuchsia-400/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-fuchsia-100">Clear</button>
                             </div>
                         </div>
-                    ))}
-                </div>
 
-                <div className="flex justify-center flex-col items-center gap-2">
-                    <button
-                        onClick={confirmDeck}
-                        className="bg-yellow-400 hover:bg-yellow-300 text-black font-black text-2xl py-4 px-12 rounded-full shadow-[0_0_30px_rgba(250,204,21,0.5)] transition-transform hover:scale-105 active:scale-95"
-                    >
-                        ENTER THE DRAFT
-                    </button>
-                    <span className="text-slate-500 text-sm">{selectedUniverses.length} Universes Selected</span>
+                        <div className="grid max-h-[460px] grid-cols-1 gap-3 overflow-y-auto pr-2 md:grid-cols-2 xl:grid-cols-3">
+                            {availableUniverses.map((universe) => {
+                                const selected = selectedUniverses.includes(universe);
+                                return (
+                                    <button
+                                        key={universe}
+                                        type="button"
+                                        onClick={() => toggleUniverse(universe)}
+                                        className={cx('hud-chip flex items-center justify-between border px-4 py-4 text-left transition', selected ? 'border-cyan-300/50 bg-cyan-400/10 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.15)]' : 'border-white/10 bg-[#07111c]/92 text-white/72 hover:border-white/20')}
+                                    >
+                                        <span className="truncate text-sm font-black uppercase tracking-[0.08em]">{universe}</span>
+                                        <span className={cx('ml-3 flex h-6 w-6 items-center justify-center border text-[10px] font-black', selected ? 'border-cyan-200/60 bg-cyan-300 text-black' : 'border-white/16 text-white/35')}>
+                                            {selected ? 'ON' : '--'}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-8 flex flex-col items-center gap-3">
+                            <button type="button" onClick={confirmDeck} className="hud-chip border border-yellow-300/50 bg-yellow-300 px-10 py-4 text-lg font-black uppercase tracking-[0.16em] text-black shadow-[0_0_26px_rgba(250,204,21,0.28)] transition hover:scale-[1.02]">
+                                Enter The Draft
+                            </button>
+                            <div className="text-xs uppercase tracking-[0.18em] text-white/45">Verified roster only</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        )
+        );
+    }
+
+    if (gameStatus === 'FINISHED' || gameStatus === 'GRADING') {
+        return (
+            <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.18),_transparent_22%),linear-gradient(180deg,#03050c_0%,#07101a_42%,#04070f_100%)] px-4 py-10 text-white">
+                <div className="mx-auto max-w-6xl">
+                    <div className="mb-6 text-center">
+                        <div className="text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/88">Single Player // Match Result</div>
+                        <h1 className={cx('mt-2 text-5xl font-black uppercase tracking-[0.12em]', result?.isWin ? 'text-yellow-300' : 'text-fuchsia-300')}>
+                            {gameStatus === 'GRADING' ? 'Calculating...' : result?.isWin ? 'Victory' : 'Defeat'}
+                        </h1>
+                        {result && (
+                            <div className="mt-4 grid gap-4 md:grid-cols-3">
+                                <ScorePanel label="Your Total" value={`${result.userScore}`} tone="cyan" flash={false} />
+                                <ScorePanel label="CPU Total" value={`${result.cpuScore}`} tone="fuchsia" flash={false} />
+                                <ScorePanel label="Outcome" value={result.isWin ? 'Win' : 'Loss'} tone="amber" flash={false} />
+                            </div>
+                        )}
+                    </div>
+
+                    {result && (
+                        <>
+                            <div className="mb-6 grid gap-4 lg:grid-cols-2">
+                                <div className="hud-panel border border-cyan-300/16 bg-[#050c16]/92 p-4">
+                                    <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-cyan-300/88">Your Squad</div>
+                                    <div className="mb-3 text-xs text-cyan-100/80">{formatBreakdownSummary(result.userBreakdown)}</div>
+                                    <div className="flex flex-wrap gap-3">
+                                        {userTeam.map((char, index) => (
+                                            <SquadSlot key={`result-user-${index}`} char={char} role={activeRoles[index]} accent="cyan" emptyLabel="Empty" />
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="hud-panel border border-fuchsia-300/16 bg-[#050c16]/92 p-4">
+                                    <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-fuchsia-300/88">Enemy Squad</div>
+                                    <div className="mb-3 text-xs text-fuchsia-100/80">{formatBreakdownSummary(result.cpuBreakdown)}</div>
+                                    <div className="flex flex-wrap gap-3">
+                                        {cpuTeam.map((char, index) => (
+                                            <SquadSlot key={`result-cpu-${index}`} char={char} role={activeRoles[index]} accent="fuchsia" emptyLabel="Empty" grayscale />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="hud-panel mb-6 border border-fuchsia-300/16 bg-[#050c16]/96 p-4">
+                                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.3em] text-cyan-100">Battle Log</div>
+                                <div className="max-h-[320px] space-y-1.5 overflow-y-auto border border-cyan-300/10 bg-[#060b14]/98 p-2.5 font-mono text-[11px]">
+                                    {result.logs.map((log, index) => (
+                                        <div key={`${log}-${index}`} className={cx('hud-chip border px-2.5 py-2', log.includes('TOTAL SCORE') || log.includes('COMBAT SCORE') ? 'border-yellow-300/24 bg-yellow-300/10 text-yellow-100' : log.includes('BONUS SCORING') || log.includes('TIEBREAKER') ? 'border-fuchsia-300/24 bg-fuchsia-300/10 text-fuchsia-100' : 'border-white/6 bg-[#0a1220]/92 text-white/78')}>
+                                            {log}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    <div className="flex flex-wrap justify-center gap-3">
+                        <button type="button" onClick={handleRematch} className="hud-chip border border-cyan-300/30 bg-cyan-400/12 px-8 py-3 text-sm font-black uppercase tracking-[0.16em] text-cyan-100">Rematch</button>
+                        <button type="button" onClick={resetToFilter} className="hud-chip border border-white/12 bg-white/6 px-8 py-3 text-sm font-black uppercase tracking-[0.16em] text-white/86">Change Universes</button>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="w-full max-w-7xl mx-auto p-4 flex flex-col gap-8">
-            {/* HEADER */}
-            <div className="flex justify-between items-center bg-slate-900/80 p-4 rounded-xl border border-slate-700">
-                <div className="text-white font-bold">
-                    TURN: <span className={isUserTurn ? "text-yellow-400" : "text-red-500"}>{isUserTurn ? 'YOUR TURN' : 'CPU TURN'}</span>
-                </div>
-                <div className="text-blue-400 font-mono">
-                    SKIPS: {skipsRemaining}/{MAX_SKIPS}
-                </div>
-            </div>
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.18),_transparent_22%),linear-gradient(180deg,#03050c_0%,#07101a_42%,#04070f_100%)] px-4 py-8 text-white">
+            <style jsx global>{`
+                .hud-panel { position: relative; overflow: hidden; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px)); box-shadow: 0 0 0 1px rgba(34,211,238,0.12), inset 0 0 0 1px rgba(34,211,238,0.05), 0 18px 44px rgba(0,0,0,0.46); }
+                .hud-chip { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+                .anime-card { clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
+            `}</style>
 
-            <div className="flex flex-col xl:flex-row gap-8 min-h-[600px]">
-                {/* USER TEAM (The Clickable Slots) */}
-                <div className="xl:w-1/4 flex flex-col gap-4">
-                    <h2 className="text-xl font-black text-blue-400 text-center mb-2">YOUR SQUAD</h2>
-                    {userTeam.map((char, i) => (
-                        <div
-                            key={`user-slot-${i}`}
-                            onClick={() => handleSlotClick(i)}
-                            className={`
-                                h-28 w-full rounded-xl border-2 flex items-center justify-center relative overflow-hidden transition-all duration-300
-                                ${char ? 'border-blue-500 bg-slate-900' : 'bg-slate-900/50 border-dashed border-slate-700'}
-                                ${!char && currentDraw && isUserTurn ? 'cursor-pointer hover:border-yellow-400 hover:bg-yellow-400/10 shadow-[0_0_15px_rgba(250,204,21,0.3)] animate-pulse' : ''}
-                            `}
-                        >
-                            <div className="absolute top-1 right-2 flex flex-col items-end z-10">
-                                <span className="text-[10px] font-bold text-blue-500 tracking-widest">{ROLE_DISPLAY_NAMES[activeRoles[i]].toUpperCase()}</span>
-                                {/* SHOW STARS only AFTER placement */}
-                                {char && (
-                                    <div className="text-yellow-400 text-xs font-mono">
-                                        {'⭐'.repeat((char.stats.roleStats[activeRoles[i]] as number) || 1)}
-                                    </div>
-                                )}
-                            </div>
-
-                            {char ? (
-                                <div className="w-full h-full relative group">
-                                    <Image src={char.imageUrl} alt={char.name} fill className="object-cover" />
-                                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center pointer-events-none p-1">
-                                        <span className="text-white font-bold text-lg text-center drop-shadow-md leading-tight">{char.name}</span>
-                                        {/* Show AI Reason if available */}
-                                        {char.stats.roleStats.reason && (
-                                            <span className="text-[8px] text-yellow-200/80 text-center leading-none mt-1 max-w-full px-1">
-                                                &quot;{char.stats.roleStats.reason}&quot;
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <span className="text-slate-600 text-sm font-mono">
-                                    {currentDraw && isUserTurn ? "PLACE HERE" : "EMPTY"}
-                                </span>
-                            )}
-                        </div>
-                    ))}
+            <div className="mx-auto max-w-[1380px] xl:pl-[250px]">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/88">Single Player // Draft Feed</div>
+                        <h1 className="mt-1 text-[28px] font-black uppercase tracking-[0.14em] text-white">Anime Draft Broadcast</h1>
+                    </div>
+                    <div className="hud-chip border border-white/10 bg-white/6 px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-white/72">
+                        {isUserTurn ? 'Your Turn' : 'CPU Turn'}
+                    </div>
                 </div>
 
-                {/* CENTER (Summon & Action Area) */}
-                <div className="xl:w-1/2 flex items-center justify-center bg-slate-950 rounded-2xl border-2 border-slate-800 relative overflow-hidden p-8 min-h-[500px]">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 pointer-events-none" />
+                <div className="hidden xl:fixed xl:left-4 xl:top-28 xl:block xl:w-[220px]">
+                    <SynergyBoard synergies={liveSynergies} variant="compact" emptyText="Place cards to light up live synergies." />
+                </div>
 
-                    {/* Summon Button */}
-                    {gameStatus === 'DRAFTING' && isUserTurn && !currentDraw && (
-                        <button onClick={handleUserSummon} className="relative z-10 group">
-                            <div className="w-64 h-80 bg-slate-800 rounded-xl border-4 border-slate-600 flex items-center justify-center group-hover:border-yellow-400 group-hover:shadow-[0_0_30px_rgba(250,204,21,0.3)] transition-all">
-                                <div className="text-center">
-                                    <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🔮</div>
-                                    <div className="font-bold text-white text-xl">SUMMON</div>
-                                </div>
-                            </div>
-                        </button>
-                    )}
-
-                    {/* Drawn Character View (STATS HIDDEN) */}
-                    {gameStatus === 'DRAFTING' && currentDraw && (
-                        <div className="flex flex-col items-center gap-6 animate-zoom-in relative z-10 w-full">
-                            <div className="flex flex-col items-center">
-                                <div className="scale-110 mb-4 w-64">
-                                    <CharacterCard character={currentDraw} hideStats={true} />
-                                </div>
-                                <div className="bg-blue-900/30 border border-blue-500/30 px-4 py-2 rounded text-blue-300 text-sm font-mono">
-                                    Use your Anime Knowledge!
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={handleSkip}
-                                disabled={skipsRemaining === 0}
-                                className="bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-8 rounded-full shadow-lg mt-4"
-                            >
-                                SKIP ({skipsRemaining})
+                <div className="mb-6 grid gap-4 xl:grid-cols-[220px_1fr_220px]">
+                    <ScorePanel label="Turn State" value={isUserTurn ? 'Player Priority' : 'CPU Priority'} tone="cyan" flash={false} />
+                    <div className="hud-panel border border-yellow-300/24 bg-[#050c16]/92 px-4 py-4 text-center">
+                        <div className="text-[9px] font-black uppercase tracking-[0.34em] text-yellow-100/72">Current Draw</div>
+                        {!currentDraw && !isGameFull && isUserTurn && (
+                            <button type="button" onClick={handleUserSummon} className="hud-chip mt-4 border border-yellow-300/50 bg-yellow-300 px-8 py-4 text-lg font-black uppercase tracking-[0.16em] text-black">
+                                Summon
                             </button>
-                            <div className="text-center text-[10px] text-slate-500 mt-2">
-                                Click a slot on the left to assign this character based on their LORE aptitude.
+                        )}
+                        {currentDraw && (
+                            <div className="mt-4 flex flex-col items-center gap-4">
+                                <SquadSlot char={currentDraw} role={highlightedRoles[0] || activeRoles[0]} accent="cyan" emptyLabel="" highlight />
+                                <div className="text-xs uppercase tracking-[0.16em] text-white/55">Best fits: {highlightedRoles.map((role) => roleLabel(role)).join(', ')}</div>
+                                <button type="button" onClick={handleSkip} disabled={skipsRemaining <= 0} className="hud-chip border border-fuchsia-300/24 bg-fuchsia-400/10 px-5 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-fuchsia-100 disabled:opacity-40">
+                                    Skip ({skipsRemaining})
+                                </button>
                             </div>
-                        </div>
-                    )}
-
-                    {gameStatus === 'DRAFTING' && !isUserTurn && (
-                        <div className="text-center animate-pulse">
-                            <div className="text-6xl mb-4">🤖</div>
-                            <div className="text-red-400 font-mono text-xl">OPPONENT TURN...</div>
-                        </div>
-                    )}
-
-                    {/* Reveal Button */}
-                    {gameStatus === 'DRAFTING' && isGameFull && (
-                        <button onClick={handleGameEnd} className="relative z-10 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-10 rounded-full animate-bounce shadow-2xl border-4 border-blue-400">
-                            REVEAL WINNER
-                        </button>
-                    )}
-
-                    {/* Results */}
-                    {(gameStatus === 'FINISHED' || gameStatus === 'GRADING') && (
-                        <div className="text-center w-full z-20">
-                            <h1 className={`text-6xl font-black mb-4 ${result?.isWin ? 'text-green-500' : 'text-red-500'}`}>
-                                {result?.isWin ? 'VICTORY' : 'DEFEAT'}
-                            </h1>
-                            <div className="bg-black/50 p-4 rounded-lg h-64 overflow-y-auto mb-6 text-left font-mono">
-                                {result?.logs.map((log: string, i: number) => (
-                                    <div key={i} className={`py-1 border-b border-white/10 ${log.includes("WINS") ? "text-green-300" : log.includes("LOSES") ? "text-red-300" : "text-white"}`}>{log}</div>
-                                ))}
-                            </div>
-                            <button onClick={() => window.location.reload()} className="bg-white text-black font-bold py-3 px-8 rounded-full">AGAIN</button>
-                        </div>
-                    )}
+                        )}
+                        {!isUserTurn && !isGameFull && <div className="mt-5 text-sm font-black uppercase tracking-[0.18em] text-fuchsia-200/80">Opponent Thinking...</div>}
+                        {isGameFull && (
+                            <button type="button" onClick={handleGameEnd} className="hud-chip mt-4 border border-cyan-300/40 bg-cyan-300 px-8 py-4 text-lg font-black uppercase tracking-[0.16em] text-black">
+                                Reveal Winner
+                            </button>
+                        )}
+                    </div>
+                    <ScorePanel label="Draft Resources" value={`Skips ${skipsRemaining}/${MAX_SKIPS}`} tone="fuchsia" flash={false} />
                 </div>
 
-                {/* CPU TEAM */}
-                <div className="xl:w-1/4 flex flex-col gap-4">
-                    <h2 className="text-xl font-black text-red-500 text-center mb-2">ENEMY SQUAD</h2>
-                    {cpuTeam.map((char, i) => (
-                        <div key={`cpu-slot-${i}`} className="h-28 w-full rounded-xl border border-red-500/30 bg-slate-900/50 flex items-center justify-center relative overflow-hidden">
-                            <div className="absolute top-1 left-2 flex flex-col z-10">
-                                <span className="text-[10px] font-bold text-red-500 tracking-widest">{ROLE_DISPLAY_NAMES[activeRoles[i]].toUpperCase()}</span>
-                                {char && (
-                                    <div className="text-red-400 text-xs font-mono">
-                                        {'⭐'.repeat((char.stats?.roleStats?.[activeRoles[i]] as number) || 1)}
-                                    </div>
-                                )}
-                            </div>
-                            {char ? (
-                                <div className="w-full h-full relative group">
-                                    <Image src={char.imageUrl} alt={char.name} fill className="object-cover grayscale" />
-                                    <div className="absolute inset-0 bg-red-900/40 flex flex-col items-center justify-center pointer-events-none p-1">
-                                        <span className="text-white font-bold text-lg text-center drop-shadow-md leading-tight">{char.name}</span>
-                                        {/* Show AI Reason if available */}
-                                        {char.stats.roleStats.reason && (
-                                            <span className="text-[8px] text-yellow-200/80 text-center leading-none mt-1 max-w-full px-1">
-                                                &quot;{char.stats.roleStats.reason}&quot;
-                                            </span>
-                                        )}
-                                    </div>
+                <div className="hud-panel overflow-x-auto border border-cyan-300/16 bg-[#040913]/92 p-4">
+                    <div className="grid items-start" style={{ minWidth: HUD_METRICS.squadColumnWidth * 2 + HUD_METRICS.laneWidth + HUD_METRICS.stageGap * 2, gridTemplateColumns: `${HUD_METRICS.squadColumnWidth}px ${HUD_METRICS.laneWidth}px ${HUD_METRICS.squadColumnWidth}px`, gap: HUD_METRICS.stageGap }}>
+                        <div className="relative z-10 flex min-h-[900px] flex-col px-3 py-3">
+                            <div className="hud-panel h-full border border-cyan-300/16 bg-[#050c16]/92 px-6 py-3">
+                                <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-cyan-300/88" style={{ height: HUD_METRICS.headerHeight }}>Your Squad</div>
+                                <div className="flex flex-col items-center" style={{ gap: HUD_METRICS.rowGap }}>
+                                    {userTeam.map((char, index) => (
+                                        <SquadSlot key={`user-${index}`} char={char} role={activeRoles[index]} accent="cyan" emptyLabel={currentDraw && isUserTurn ? 'Place Here' : 'Empty'} clickable={Boolean(currentDraw && isUserTurn && !char)} onClick={() => handleSlotClick(index)} highlight={Boolean(currentDraw && isUserTurn && !char && highlightedRoles.includes(activeRoles[index]))} />
+                                    ))}
                                 </div>
-                            ) : (
-                                <span className="text-slate-700 text-xs">Waiting...</span>
-                            )}
+                            </div>
                         </div>
-                    ))}
-                </div>
 
+                        <RoleLane activeRoles={activeRoles} highlightedRoles={highlightedRoles} />
+
+                        <div className="relative z-10 flex min-h-[900px] flex-col px-3 py-3">
+                            <div className="hud-panel h-full border border-fuchsia-300/16 bg-[#050c16]/92 px-6 py-3">
+                                <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-fuchsia-300/88" style={{ height: HUD_METRICS.headerHeight }}>Enemy Squad</div>
+                                <div className="flex flex-col items-center" style={{ gap: HUD_METRICS.rowGap }}>
+                                    {cpuTeam.map((char, index) => (
+                                        <SquadSlot key={`cpu-${index}`} char={char} role={activeRoles[index]} accent="fuchsia" emptyLabel="Waiting" grayscale />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
