@@ -10,6 +10,17 @@ import { BASE_ROLES, ROLE_DISPLAY_NAMES, type RoleKey } from '@/lib/gameConfig';
 import { evaluateSynergyBoard } from '@/lib/synergyBoard';
 
 const MAX_SKIPS = 1;
+const DRAFT_METRICS = {
+    ...HUD_METRICS,
+    cardWidth: 122,
+    cardHeight: 166,
+    rowGap: 20,
+    squadColumnWidth: 368,
+    squadPaddingX: 42,
+    stageGap: 24,
+    laneWidth: 220,
+    headerHeight: 40,
+} as const;
 
 interface MatchResult {
     isWin: boolean;
@@ -32,19 +43,23 @@ function roleLabel(role: RoleKey) {
     return ROLE_DISPLAY_NAMES[role];
 }
 
+function getStageHeight(roleCount: number) {
+    return DRAFT_METRICS.headerHeight + (roleCount * DRAFT_METRICS.cardHeight) + ((roleCount - 1) * DRAFT_METRICS.rowGap) + 42;
+}
+
 function getLaneExtents() {
-    const leftInset = HUD_METRICS.squadPaddingX + ((HUD_METRICS.squadColumnWidth - (HUD_METRICS.squadPaddingX * 2) - HUD_METRICS.cardWidth) / 2);
-    const leftReach = HUD_METRICS.squadColumnWidth + HUD_METRICS.stageGap - leftInset;
-    const rightReach = HUD_METRICS.stageGap + leftInset + HUD_METRICS.cardWidth;
+    const leftInset = DRAFT_METRICS.squadPaddingX + ((DRAFT_METRICS.squadColumnWidth - (DRAFT_METRICS.squadPaddingX * 2) - DRAFT_METRICS.cardWidth) / 2);
+    const leftReach = DRAFT_METRICS.squadColumnWidth + DRAFT_METRICS.stageGap - leftInset;
+    const rightReach = DRAFT_METRICS.stageGap + leftInset + DRAFT_METRICS.cardWidth;
     return { leftReach, rightReach };
 }
 
 function ScorePanel({ label, value, tone, flash = false }: { label: string; value: string; tone: 'cyan' | 'fuchsia' | 'amber'; flash?: boolean }) {
     const toneClass = tone === 'cyan'
-        ? 'border-cyan-300/25 bg-[#081120]/92 text-cyan-100'
+        ? 'border-cyan-300/25 bg-[linear-gradient(160deg,rgba(4,17,31,0.98),rgba(3,9,18,0.96))] text-cyan-100'
         : tone === 'fuchsia'
-            ? 'border-fuchsia-300/25 bg-[#081120]/92 text-fuchsia-100'
-            : 'border-yellow-300/35 bg-[#081120]/92 text-yellow-100';
+            ? 'border-fuchsia-300/25 bg-[linear-gradient(160deg,rgba(17,6,22,0.98),rgba(7,8,17,0.96))] text-fuchsia-100'
+            : 'border-yellow-300/35 bg-[linear-gradient(160deg,rgba(25,17,4,0.98),rgba(8,10,18,0.96))] text-yellow-100';
 
     return (
         <div className={cx('hud-panel px-4 py-3 transition duration-200', toneClass, flash && 'scale-[1.02] shadow-[0_0_28px_rgba(34,211,238,0.18)]')}>
@@ -63,6 +78,8 @@ function SquadSlot({
     onClick,
     highlight,
     grayscale = false,
+    showRoleStars = true,
+    roleTextClassName,
 }: {
     char: CharacterItem | null;
     role: RoleKey;
@@ -72,6 +89,8 @@ function SquadSlot({
     onClick?: () => void;
     highlight?: boolean;
     grayscale?: boolean;
+    showRoleStars?: boolean;
+    roleTextClassName?: string;
 }) {
     const accentBorder = accent === 'cyan' ? 'border-cyan-300/28 bg-[#07101d]/94' : 'border-fuchsia-300/28 bg-[#07101d]/94';
     const glow = accent === 'cyan' ? 'hover:border-cyan-300 hover:shadow-[0_0_22px_rgba(34,211,238,0.20)]' : 'hover:border-fuchsia-300 hover:shadow-[0_0_22px_rgba(217,70,239,0.20)]';
@@ -86,7 +105,7 @@ function SquadSlot({
                 'relative flex items-center justify-center transition-all',
                 clickable ? 'cursor-pointer' : 'cursor-default'
             )}
-            style={{ height: HUD_METRICS.cardHeight }}
+            style={{ height: DRAFT_METRICS.cardHeight }}
         >
             <div
                 className={cx(
@@ -96,7 +115,7 @@ function SquadSlot({
                     highlight && 'border-yellow-300/70 shadow-[0_0_28px_rgba(250,204,21,0.18)]',
                     !char && 'border-dashed border-white/12 bg-black/30'
                 )}
-                style={{ width: HUD_METRICS.cardWidth, height: HUD_METRICS.cardHeight }}
+                style={{ width: DRAFT_METRICS.cardWidth, height: DRAFT_METRICS.cardHeight }}
             >
                 {char ? (
                     <>
@@ -106,19 +125,21 @@ function SquadSlot({
                         <div className="absolute left-0 top-0 h-5 w-5 border-l-[3px] border-t-[3px] border-cyan-300/60" />
                         <div className="absolute bottom-0 right-0 h-5 w-5 border-b-[3px] border-r-[3px] border-fuchsia-300/55" />
                         <div className="absolute left-0 top-0 h-[2px] w-full bg-cyan-300/75" />
-                        <div className="absolute right-1.5 top-1.5 border border-yellow-100/70 bg-yellow-300 px-1.5 py-1 text-[8px] font-black text-black shadow-lg">
-                            ★{roleStars}
-                        </div>
-                        <div className="absolute inset-x-1.5 bottom-1.5 bg-black/42 px-1.5 py-1">
-                            <div className="truncate text-[9px] font-black leading-none text-white">{char.name}</div>
-                            <div className="mt-0.5 truncate text-[8px] uppercase tracking-[0.12em] text-white/60">{char.animeUniverse}</div>
+                        {showRoleStars && (
+                            <div className="absolute right-2 top-2 border border-yellow-100/70 bg-yellow-300 px-2 py-1 text-[10px] font-black text-black shadow-lg">
+                                {'★'}{roleStars}
+                            </div>
+                        )}
+                        <div className="absolute inset-x-2 bottom-2 bg-black/46 px-2 py-1.5">
+                            <div className={cx('truncate text-[11px] font-black leading-none text-white', roleTextClassName)}>{char.name}</div>
+                            <div className="mt-1 truncate text-[9px] uppercase tracking-[0.16em] text-white/60">{char.animeUniverse}</div>
                             {char.stats.roleStats.reason && (
-                                <div className="mt-1 truncate text-[7px] uppercase tracking-[0.12em] text-yellow-200/80">{char.stats.roleStats.reason}</div>
+                                <div className="mt-1 truncate text-[8px] uppercase tracking-[0.12em] text-yellow-200/80">{char.stats.roleStats.reason}</div>
                             )}
                         </div>
                     </>
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(160deg,rgba(34,211,238,0.05),transparent_55%,rgba(217,70,239,0.08))] px-3 text-center text-[10px] font-black uppercase tracking-[0.16em] text-white/34">
+                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(160deg,rgba(34,211,238,0.05),transparent_55%,rgba(217,70,239,0.08))] px-4 text-center text-[11px] font-black uppercase tracking-[0.18em] text-white/34">
                         {emptyLabel}
                     </div>
                 )}
@@ -127,37 +148,28 @@ function SquadSlot({
     );
 }
 
-function RoleLane({ activeRoles, highlightedRoles }: { activeRoles: RoleKey[]; highlightedRoles: RoleKey[] }) {
+function RoleLane({ activeRoles }: { activeRoles: RoleKey[] }) {
     const { leftReach, rightReach } = getLaneExtents();
 
     return (
-        <div className="relative z-0 flex min-h-[900px] flex-col border border-cyan-300/18 bg-[linear-gradient(180deg,rgba(5,11,20,0.98),rgba(2,7,15,0.98))] px-3 py-3 shadow-[0_20px_44px_rgba(0,0,0,0.46)]" style={{ overflow: 'visible' }}>
-            <div className="mb-3 flex items-center justify-center text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/78" style={{ height: HUD_METRICS.headerHeight }}>Battle Lane</div>
-            <div className="flex flex-col items-center" style={{ gap: HUD_METRICS.rowGap }}>
+        <div className="relative z-0 flex flex-col border border-cyan-300/18 bg-[linear-gradient(180deg,rgba(5,11,20,0.98),rgba(2,7,15,0.98))] px-3 py-3 shadow-[0_20px_44px_rgba(0,0,0,0.46)]" style={{ minHeight: getStageHeight(activeRoles.length), overflow: 'visible' }}>
+            <div className="mb-3 flex items-center justify-center text-[10px] font-black uppercase tracking-[0.42em] text-cyan-300/78" style={{ height: DRAFT_METRICS.headerHeight }}>Battle Lane</div>
+            <div className="flex flex-col items-center" style={{ gap: DRAFT_METRICS.rowGap }}>
                 {activeRoles.map((role) => {
-                    const isHighlighted = highlightedRoles.includes(role);
                     const isTraitor = role === 'traitor';
-                    const bandClass = isHighlighted
-                        ? isTraitor
-                            ? 'border-fuchsia-300/50 bg-[linear-gradient(90deg,rgba(244,114,182,0.14),rgba(4,10,18,0.02),rgba(244,114,182,0.14))]'
-                            : 'border-cyan-300/50 bg-[linear-gradient(90deg,rgba(34,211,238,0.14),rgba(4,10,18,0.02),rgba(34,211,238,0.14))]'
-                        : 'border-white/10 bg-[linear-gradient(90deg,rgba(255,255,255,0.03),transparent,rgba(255,255,255,0.03))]';
-                    const lineClass = isHighlighted
-                        ? isTraitor
-                            ? 'bg-fuchsia-300/85 shadow-[0_0_12px_rgba(244,114,182,0.26)]'
-                            : 'bg-cyan-300/85 shadow-[0_0_12px_rgba(34,211,238,0.26)]'
-                        : 'bg-white/16';
-                    const labelClass = isHighlighted
-                        ? isTraitor
-                            ? 'border-fuchsia-300 bg-fuchsia-400/14 text-fuchsia-100'
-                            : 'border-cyan-300 bg-cyan-400/12 text-cyan-100'
-                        : isTraitor
-                            ? 'border-fuchsia-300/20 bg-[#0b1322] text-fuchsia-200/70'
-                            : 'border-white/10 bg-[#0b1322] text-white/56';
+                    const bandClass = isTraitor
+                        ? 'border-fuchsia-300/28 bg-[linear-gradient(90deg,rgba(244,114,182,0.12),rgba(4,10,18,0.04),rgba(244,114,182,0.12))]'
+                        : 'border-cyan-300/24 bg-[linear-gradient(90deg,rgba(34,211,238,0.11),rgba(4,10,18,0.03),rgba(34,211,238,0.11))]';
+                    const lineClass = isTraitor
+                        ? 'bg-fuchsia-300/75 shadow-[0_0_12px_rgba(244,114,182,0.24)]'
+                        : 'bg-cyan-300/75 shadow-[0_0_12px_rgba(34,211,238,0.24)]';
+                    const labelClass = isTraitor
+                        ? 'border-fuchsia-300/35 bg-[#130b1b] text-fuchsia-100'
+                        : 'border-cyan-300/28 bg-[#0b1322] text-cyan-100';
 
                     return (
-                        <div key={role} className="relative flex w-full items-center justify-center" style={{ height: HUD_METRICS.cardHeight, overflow: 'visible' }}>
-                            <div className={cx('pointer-events-none absolute top-1/2 h-[118px] -translate-y-1/2 border-y', bandClass)} style={{ left: -leftReach, right: -rightReach }} />
+                        <div key={role} className="relative flex w-full items-center justify-center" style={{ height: DRAFT_METRICS.cardHeight, overflow: 'visible' }}>
+                            <div className={cx('pointer-events-none absolute top-1/2 -translate-y-1/2 border-y', bandClass)} style={{ left: -leftReach, right: -rightReach, height: DRAFT_METRICS.cardHeight + 14 }} />
                             <div className={cx('pointer-events-none absolute top-1/2 h-px -translate-y-1/2', lineClass)} style={{ left: -leftReach, right: -rightReach }} />
                             <div className={cx('hud-chip relative z-20 border px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.12em]', labelClass)}>
                                 {roleLabel(role)}
@@ -188,11 +200,6 @@ export default function DraftGrid() {
 
     const isGameFull = userTeam.every(Boolean) && cpuTeam.every(Boolean);
     const liveSynergies = useMemo(() => evaluateSynergyBoard(userTeam, activeRoles), [activeRoles, userTeam]);
-    const highlightedRoles = useMemo(() => {
-        if (!currentDraw) return [];
-        const bestStar = activeRoles.reduce((best, role) => Math.max(best, Number(currentDraw.stats.roleStats[role] || 0)), 0);
-        return activeRoles.filter((role) => Number(currentDraw.stats.roleStats[role] || 0) === bestStar);
-    }, [activeRoles, currentDraw]);
 
     useEffect(() => {
         let mounted = true;
@@ -232,10 +239,14 @@ export default function DraftGrid() {
                 setCharacterPool(pool);
                 if (!pick) return;
 
-                const randomSlotIndex = emptyCpuSlots[Math.floor(Math.random() * emptyCpuSlots.length)];
+                const bestRoleValue = Math.max(...emptyCpuSlots.map((slotIndex) => Number(pick.stats.roleStats[activeRoles[slotIndex]] || 0)));
+                const bestSlotIndexes = emptyCpuSlots.filter((slotIndex) => Number(pick.stats.roleStats[activeRoles[slotIndex]] || 0) === bestRoleValue);
+                const useBestFit = Math.random() < 0.8;
+                const slotPool = useBestFit && bestSlotIndexes.length > 0 ? bestSlotIndexes : emptyCpuSlots;
+                const chosenSlotIndex = slotPool[Math.floor(Math.random() * slotPool.length)];
                 setCpuTeam((prev) => {
                     const next = [...prev];
-                    next[randomSlotIndex] = pick;
+                    next[chosenSlotIndex] = pick;
                     return next;
                 });
                 setIsUserTurn(true);
@@ -246,7 +257,7 @@ export default function DraftGrid() {
         }
 
         return undefined;
-    }, [characterPool, cpuTeam, gameStatus, isUserTurn]);
+    }, [activeRoles, characterPool, cpuTeam, gameStatus, isUserTurn]);
 
     function toggleUniverse(universe: string) {
         setSelectedUniverses((prev) => (prev.includes(universe) ? prev.filter((item) => item !== universe) : [...prev, universe]));
@@ -528,8 +539,11 @@ export default function DraftGrid() {
                         )}
                         {currentDraw && (
                             <div className="mt-4 flex flex-col items-center gap-4">
-                                <SquadSlot char={currentDraw} role={highlightedRoles[0] || activeRoles[0]} accent="cyan" emptyLabel="" highlight />
-                                <div className="text-xs uppercase tracking-[0.16em] text-white/55">Best fits: {highlightedRoles.map((role) => roleLabel(role)).join(', ')}</div>
+                                <SquadSlot char={currentDraw} role={activeRoles[0]} accent="cyan" emptyLabel="" highlight showRoleStars={false} roleTextClassName="text-[12px]" />
+                                <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.14em]">
+                                    <span className="hud-chip border border-cyan-300/18 bg-cyan-400/10 px-3 py-1 text-cyan-100">{currentDraw.animeUniverse}</span>
+                                    <span className="hud-chip border border-white/12 bg-white/6 px-3 py-1 text-white/75">{currentDraw.stats.favorites.toLocaleString()} favorites</span>
+                                </div>
                                 <button type="button" onClick={handleSkip} disabled={skipsRemaining <= 0} className="hud-chip border border-fuchsia-300/24 bg-fuchsia-400/10 px-5 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-fuchsia-100 disabled:opacity-40">
                                     Skip ({skipsRemaining})
                                 </button>
@@ -546,24 +560,24 @@ export default function DraftGrid() {
                 </div>
 
                 <div className="hud-panel overflow-x-auto border border-cyan-300/16 bg-[#040913]/92 p-4">
-                    <div className="grid items-start" style={{ minWidth: HUD_METRICS.squadColumnWidth * 2 + HUD_METRICS.laneWidth + HUD_METRICS.stageGap * 2, gridTemplateColumns: `${HUD_METRICS.squadColumnWidth}px ${HUD_METRICS.laneWidth}px ${HUD_METRICS.squadColumnWidth}px`, gap: HUD_METRICS.stageGap }}>
-                        <div className="relative z-10 flex min-h-[900px] flex-col px-3 py-3">
+                    <div className="grid items-start" style={{ minWidth: DRAFT_METRICS.squadColumnWidth * 2 + DRAFT_METRICS.laneWidth + DRAFT_METRICS.stageGap * 2, gridTemplateColumns: `${DRAFT_METRICS.squadColumnWidth}px ${DRAFT_METRICS.laneWidth}px ${DRAFT_METRICS.squadColumnWidth}px`, gap: DRAFT_METRICS.stageGap }}>
+                        <div className="relative z-10 flex flex-col px-3 py-3" style={{ minHeight: getStageHeight(activeRoles.length) }}>
                             <div className="hud-panel h-full border border-cyan-300/16 bg-[#050c16]/92 px-6 py-3">
-                                <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-cyan-300/88" style={{ height: HUD_METRICS.headerHeight }}>Your Squad</div>
-                                <div className="flex flex-col items-center" style={{ gap: HUD_METRICS.rowGap }}>
+                                <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-cyan-300/88" style={{ height: DRAFT_METRICS.headerHeight }}>Your Squad</div>
+                                <div className="flex flex-col items-center" style={{ gap: DRAFT_METRICS.rowGap }}>
                                     {userTeam.map((char, index) => (
-                                        <SquadSlot key={`user-${index}`} char={char} role={activeRoles[index]} accent="cyan" emptyLabel={currentDraw && isUserTurn ? 'Place Here' : 'Empty'} clickable={Boolean(currentDraw && isUserTurn && !char)} onClick={() => handleSlotClick(index)} highlight={Boolean(currentDraw && isUserTurn && !char && highlightedRoles.includes(activeRoles[index]))} />
+                                        <SquadSlot key={`user-${index}`} char={char} role={activeRoles[index]} accent="cyan" emptyLabel={currentDraw && isUserTurn ? 'Lock In' : 'Empty'} clickable={Boolean(currentDraw && isUserTurn && !char)} onClick={() => handleSlotClick(index)} />
                                     ))}
                                 </div>
                             </div>
                         </div>
 
-                        <RoleLane activeRoles={activeRoles} highlightedRoles={highlightedRoles} />
+                        <RoleLane activeRoles={activeRoles} />
 
-                        <div className="relative z-10 flex min-h-[900px] flex-col px-3 py-3">
+                        <div className="relative z-10 flex flex-col px-3 py-3" style={{ minHeight: getStageHeight(activeRoles.length) }}>
                             <div className="hud-panel h-full border border-fuchsia-300/16 bg-[#050c16]/92 px-6 py-3">
-                                <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-fuchsia-300/88" style={{ height: HUD_METRICS.headerHeight }}>Enemy Squad</div>
-                                <div className="flex flex-col items-center" style={{ gap: HUD_METRICS.rowGap }}>
+                                <div className="mb-3 text-[10px] font-black uppercase tracking-[0.36em] text-fuchsia-300/88" style={{ height: DRAFT_METRICS.headerHeight }}>Enemy Squad</div>
+                                <div className="flex flex-col items-center" style={{ gap: DRAFT_METRICS.rowGap }}>
                                     {cpuTeam.map((char, index) => (
                                         <SquadSlot key={`cpu-${index}`} char={char} role={activeRoles[index]} accent="fuchsia" emptyLabel="Waiting" grayscale />
                                     ))}
